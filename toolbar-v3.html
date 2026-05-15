@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShieldFont Toolbar — V3: Minimal Hero</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family: "Optik"; src: url("fonts/optik/Optik-Regular.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "Optik"; src: url("fonts/optik/Optik-Medium.ttf") format("truetype"); font-weight: 500; }
+  @font-face { font-family: "Optik"; src: url("fonts/optik/Optik-Bold.ttf") format("truetype"); font-weight: 700; }
+  @font-face { font-family: "Optik"; src: url("fonts/optik/Optik-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F1EEE6; --fg: #0D0D0D; --fg-2: #555; --fg-3: #888;
+    --line: rgba(13,13,13,.10); --line-soft: rgba(13,13,13,.06);
+    --terracotta: #C0785A; --mono: "JetBrains Mono", monospace;
+    --display: "Optik", Georgia, serif;
+  }
+  [data-theme="dark"] {
+    --bg: #1B1B1F; --fg: #F1EEE6; --fg-2: #AAA; --fg-3: #777;
+    --line: rgba(241,238,230,.10); --line-soft: rgba(241,238,230,.06);
+  }
+
+  body { background: var(--bg); color: var(--fg); font-family: var(--mono); transition: background .2s, color .2s; }
+
+  /* ── Nav bar ── */
+  .nav {
+    height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--line); user-select: none;
+  }
+  .nav-back { font-size: 18px; text-decoration: none; color: var(--fg); opacity: .6; }
+  .nav-logo {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: -.02em;
+    color: var(--fg);
+  }
+  .nav-logo .paren { opacity: .35; }
+  .nav-right { display: flex; gap: 8px; align-items: center; }
+  .nav-btn {
+    background: none; border: none; color: var(--fg); cursor: pointer;
+    font-family: var(--mono); font-size: 11px; padding: 4px 8px; border-radius: 4px;
+    opacity: .6; transition: opacity .15s;
+  }
+  .nav-btn:hover { opacity: 1; }
+
+  /* ── Toolbar (V3: minimal with hero font selector) ── */
+  .toolbar {
+    height: 40px; display: flex; align-items: center;
+    padding: 0 20px; border-bottom: 1px solid var(--line);
+    font-size: 10px; letter-spacing: .06em;
+  }
+  .toolbar-sep { width: 1px; height: 20px; background: var(--line); margin: 0 10px; }
+
+  /* Hero font selector */
+  .font-hero {
+    position: relative; flex: 0 0 auto;
+  }
+  .font-hero-trigger {
+    display: flex; align-items: center; gap: 10px;
+    background: none; border: 1px solid var(--line); border-radius: 5px;
+    padding: 5px 14px; cursor: pointer; transition: border-color .15s;
+    min-width: 200px;
+  }
+  .font-hero-trigger:hover { border-color: var(--terracotta); }
+  .font-hero-preview {
+    font-family: var(--display); font-size: 14px; font-weight: 500;
+    color: var(--fg); letter-spacing: 0;
+  }
+  .font-hero-tag {
+    font-family: var(--mono); font-size: 8px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--fg-3);
+    border: 1px solid var(--line-soft); border-radius: 3px;
+    padding: 1px 5px; margin-left: auto;
+  }
+  .font-hero-chevron { font-size: 9px; color: var(--fg-3); margin-left: 6px; }
+
+  /* Hero dropdown menu */
+  .font-hero-menu {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    min-width: 240px; background: #1B1B1F; color: #F1EEE6;
+    border: 1px solid rgba(241,238,230,.12); border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35); z-index: 100; overflow: hidden;
+    padding: 6px 0;
+  }
+  .font-hero-menu.open { display: block; }
+  .font-hero-menu-label {
+    font-family: var(--mono); font-size: 8px; letter-spacing: .14em;
+    text-transform: uppercase; color: rgba(241,238,230,.35);
+    padding: 8px 14px 4px;
+  }
+  .font-hero-option {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; cursor: pointer; transition: background .1s;
+  }
+  .font-hero-option:hover { background: rgba(241,238,230,.06); }
+  .font-hero-option.active { color: var(--terracotta); }
+  .font-hero-option .name { font-family: var(--display); font-size: 14px; }
+  .font-hero-option .specimen {
+    font-family: var(--display); font-size: 11px; color: rgba(241,238,230,.4);
+    margin-left: auto;
+  }
+  .font-hero-option .check { font-size: 13px; }
+
+  /* Overflow menu */
+  .overflow-wrap { position: relative; margin-left: auto; }
+  .overflow-btn {
+    background: none; border: 1px solid transparent; color: var(--fg);
+    cursor: pointer; font-size: 16px; padding: 3px 10px; border-radius: 4px;
+    opacity: .5; transition: all .15s; letter-spacing: 3px;
+  }
+  .overflow-btn:hover { opacity: 1; border-color: var(--line); }
+  .overflow-menu {
+    display: none; position: absolute; top: calc(100% + 6px); right: 0;
+    min-width: 140px; background: #1B1B1F; color: #F1EEE6;
+    border: 1px solid rgba(241,238,230,.12); border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 100; padding: 4px 0;
+  }
+  .overflow-menu.open { display: block; }
+  .overflow-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+    cursor: pointer; transition: background .1s; color: #F1EEE6;
+  }
+  .overflow-item:hover { background: rgba(241,238,230,.06); }
+  .overflow-item .key {
+    margin-left: auto; font-size: 9px; opacity: .35;
+  }
+
+  /* ── Content ── */
+  .content {
+    max-width: 680px; margin: 60px auto; padding: 0 24px;
+    font-family: var(--display); font-size: 18px; line-height: 1.7;
+    color: var(--fg);
+  }
+  .content p { margin-bottom: 1em; }
+  .badge {
+    display: inline-block; margin-top: 40px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--fg-3); opacity: .5;
+  }
+</style>
+</head>
+<body>
+  <!-- Nav bar -->
+  <nav class="nav">
+    <a href="#" class="nav-back">&larr;</a>
+    <span class="nav-logo">
+      SHIELD<span class="paren">(</span>FONT<span class="paren">)</span>
+    </span>
+    <div class="nav-right">
+      <button class="nav-btn" onclick="toggleTheme()" id="themeBtn">&#9789;</button>
+      <button class="nav-btn" style="background:var(--terracotta);color:#fff;opacity:1;padding:5px 12px;border-radius:4px;">&#9654; Publish</button>
+    </div>
+  </nav>
+
+  <!-- Toolbar: minimal with hero font selector -->
+  <div class="toolbar">
+    <!-- Hero font selector -->
+    <div class="font-hero" id="fontHero">
+      <div class="font-hero-trigger" onclick="toggleFontMenu()">
+        <span class="font-hero-preview" id="fontPreview">ShieldFont Optik</span>
+        <span class="font-hero-tag">FONT</span>
+        <span class="font-hero-chevron">&#9662;</span>
+      </div>
+      <div class="font-hero-menu" id="fontHeroMenu">
+        <div class="font-hero-menu-label">Typeface</div>
+        <div class="font-hero-option active" onclick="pickFont(this, 'ShieldFont Optik')">
+          <span class="check">&#10003;</span>
+          <span class="name">ShieldFont Optik</span>
+          <span class="specimen">Aa Bb Cc</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar-sep"></div>
+
+    <!-- View toggle inline -->
+    <button class="nav-btn" style="opacity:.8;font-size:9px;letter-spacing:.1em;text-transform:uppercase;">&#128100; Humans</button>
+    <button class="nav-btn" style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;">&#129302; AI</button>
+
+    <!-- Overflow menu (right) -->
+    <div class="overflow-wrap">
+      <button class="overflow-btn" onclick="toggleOverflow()" id="overflowBtn">&middot;&middot;&middot;</button>
+      <div class="overflow-menu" id="overflowMenu">
+        <div class="overflow-item"><span><b>B</b></span> Bold <span class="key">&#8984;B</span></div>
+        <div class="overflow-item"><span><i>I</i></span> Italic <span class="key">&#8984;I</span></div>
+        <div class="overflow-item"><span><u>U</u></span> Underline <span class="key">&#8984;U</span></div>
+        <div style="height:1px;background:rgba(241,238,230,.08);margin:4px 0;"></div>
+        <div class="overflow-item">&#9776; Align left</div>
+        <div class="overflow-item">&#8801; Align center</div>
+        <div class="overflow-item">&#8803; Align right</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content area -->
+  <div class="content">
+    <p>The quick brown fox jumps over the lazy dog. ShieldFont encodes your text so that humans read
+    the original words while AI scrapers see only encoded gibberish.</p>
+    <p>This minimal variant makes the font selector the hero element of the toolbar. Formatting tools
+    are tucked into an overflow menu to keep the interface clean and focused.</p>
+    <span class="badge">V3 &middot; Minimal Hero</span>
+  </div>
+
+<script>
+function toggleTheme() {
+  const d = document.documentElement;
+  const next = d.dataset.theme === 'dark' ? 'light' : 'dark';
+  d.dataset.theme = next;
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '\u2600' : '\u263D';
+}
+
+function toggleFontMenu() {
+  document.getElementById('fontHeroMenu').classList.toggle('open');
+  document.getElementById('overflowMenu').classList.remove('open');
+}
+
+function pickFont(el, name) {
+  document.getElementById('fontPreview').textContent = name;
+  document.querySelectorAll('.font-hero-option').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('fontHeroMenu').classList.remove('open');
+}
+
+function toggleOverflow() {
+  document.getElementById('overflowMenu').classList.toggle('open');
+  document.getElementById('fontHeroMenu').classList.remove('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('fontHero').contains(e.target)) {
+    document.getElementById('fontHeroMenu').classList.remove('open');
+  }
+  if (!document.getElementById('overflowBtn').contains(e.target) &&
+      !document.getElementById('overflowMenu').contains(e.target)) {
+    document.getElementById('overflowMenu').classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>

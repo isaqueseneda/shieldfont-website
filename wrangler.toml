@@ -1,0 +1,23 @@
+# Shield Font marketing site — Cloudflare Worker + Static Assets binding.
+#
+# This file is the canonical source for the deploy repo's wrangler config.
+# It gets copied into ~/shieldfont-website/wrangler.toml on every
+# `./deploy-cf.sh` run, alongside src/ — the deploy repo itself is a
+# fully derived artifact and shouldn't be hand-edited.
+#
+# Cloudflare runs `npx wrangler deploy` against the deploy repo on push.
+# Static files live in ./public (rsynced from site/out/). The Worker in
+# src/index.js runs in front of every request as a pre-launch HTTP
+# Basic Auth gate. To remove the gate at launch, see LAUNCH-CHECKLIST.md.
+
+name = "shieldfont-website"
+main = "src/index.js"
+compatibility_date = "2026-05-27"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# Run the Worker on every request (not only on asset misses) so the
+# auth gate covers direct hits on index.html, /_next/*, /fonts/*, etc.
+run_worker_first = true

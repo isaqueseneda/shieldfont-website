@@ -530,8 +530,25 @@
     window.addEventListener('resize', onScroll);
   })();
 
-  /* ---------- classic hero: docwin swap (disabled) ----------
-     The You-read ⇄ AI-reads swap was deactivated per design direction.
-     Markup already renders the "read" state, so no init is needed and
-     the toggle buttons are inert (no click listeners bound). */
+  /* ---------- classic hero: You-read ⇄ AI-reads swap window ----------
+     Click handlers only — no auto-cycle. The toggle stays in whatever
+     state the user picks; nothing flips it on its own. */
+  (function(){
+    var dw = document.getElementById('docwin');
+    var toggle = document.getElementById('audienceToggle');
+    if(!dw || !toggle) return;
+    var opts = Array.prototype.slice.call(toggle.querySelectorAll('.audience-opt'));
+    var targets = Array.prototype.slice.call(dw.querySelectorAll('.dw'));
+    function setState(state){
+      toggle.setAttribute('data-state', state);
+      opts.forEach(function(o){ var on=o.getAttribute('data-aud')===state; o.classList.toggle('active',on); o.setAttribute('aria-checked',String(on)); });
+      var ai = state==='ai';
+      dw.classList.toggle('is-ai', ai);
+      targets.forEach(function(t){
+        t.textContent = ai ? t.getAttribute('data-dec') : t.getAttribute('data-real');
+        t.classList.toggle('dw-swap', ai);
+      });
+    }
+    opts.forEach(function(o){ o.addEventListener('click', function(){ setState(o.getAttribute('data-aud')); }); });
+  })();
 })();

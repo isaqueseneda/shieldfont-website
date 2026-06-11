@@ -145,10 +145,13 @@
         }
       }
 
-      /* Generous reserve on top of calibration — Optik width varies a bit
-         by weight and size, and we'd rather waste a few px than poke past
-         the right edge. The shrink loop below is the final safety net. */
-      var targetW = Math.min(layerW, textW) - 8;
+      /* Tiny hard reserve. The calibration above corrects for the
+         canvas-vs-DOM width drift; the shrink loop below absorbs any
+         residual sub-pixel rounding. A smaller reserve here means the
+         text reaches closer to the right edge of the container, which
+         was the missing "padding to the right" the user was seeing on
+         Chrome. */
+      var targetW = Math.min(layerW, textW) - 2;
       var availW = targetW / calib;
       var availH = readWrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       if(availW < 40 || availH < 40) return;
@@ -181,8 +184,10 @@
 
       /* DOM-measured shrink. Final safety net: walk the real DOM and
          shrink --hero-fs until no .hl on either layer exceeds the target.
-         Wider safety margin and a more aggressive per-pass shrink than
-         before, so a single overshooting line gets pulled in promptly. */
+         Converges with a near-exact ratio (only a tiny 0.3% extra to
+         absorb sub-pixel rounding); multiple passes handle any residual.
+         The previous 0.98 factor over-shot by ~3% per pass, which read
+         on Chrome as a big empty band on the right of the manifesto. */
       var shrinkLimitW = targetW;
       function widestHL(){
         var max = 0;
@@ -193,9 +198,9 @@
         return max;
       }
       var fs = best, passes = 0, widest = widestHL();
-      while(widest > shrinkLimitW && passes < 16){
+      while(widest > shrinkLimitW && passes < 20){
         var ratio = shrinkLimitW / widest;
-        fs = fs * ratio * 0.98;
+        fs = fs * ratio * 0.997;
         hero.style.setProperty('--hero-fs', fs.toFixed(2)+'px');
         widest = widestHL();
         passes++;

@@ -26,6 +26,8 @@
     var cwords = null;
     if(!hero || !readLayer || !codeLayer) return;
 
+    // NOTE: These paragraphs and words are hard-coded demo exceptions,
+    // should not be replaced, and should not use the <Shield> tag or .shield class here.
     var srcP = readLayer.querySelectorAll('.src-p');
     var PARAS = srcP.length
       ? Array.prototype.map.call(srcP, function(p){ return p.textContent.trim().split(/\s+/); })
@@ -60,29 +62,31 @@
        Each decoy is an obviously-random real word of the SAME length whose per-letter
        widths most closely match the original, so it occupies the same footprint. */
     var TARGETS = {protect:1, writing:1, humans:1, ownership:1, code:1, training:1, protected:1, unauthorized:1, authorization:1, learns:1, changes:1, behind:1, text:1, read:1, protecting:1, work:1, hands:1, takes:1, makes:1};
-    var RANDOM_POOL = ("frog sock moon lamp drum kite pear corn raft clam wolf bead taco sled jazz "
-      + "cactus walnut pickle donkey kettle pencil violin turnip beaver jigsaw anchor basket candle helmet lizard mitten noodle peanut rabbit saddle teapot wombat muffin "
-      + "pretzel popcorn gorilla giraffe dolphin hamster pelican raccoon biscuit cabbage leopard mustang pumpkin sardine terrier custard peacock rooster seagull opossum tadpole catfish muffins "
-      + "starfish kangaroo elephant flamingo dinosaur squirrel mandrill anteater hedgehog mongoose mackerel broccoli eggplant lavender doughnut omelette sandwich dumpling tortilla scallops cucumber zucchini "
-      + "crocodile butterfly artichoke asparagus jellyfish porcupine centipede albatross marmalade milkshake pineapple tangerine saxophone harmonica accordion "
-      + "mango lemon zebra panda olive otter robin koala melon onion brick cloud "
-      + "pineapples binoculars tangerines spaceships trampoline aubergines "
-      + "thunderstorm marshmallows refrigerator checkerboard candleholder grasshopper "
-      + "snickerdoodle huckleberries thunderclouds cheeseburgers weathervanes"
+    var RANDOM_POOL = (
+      "frog sock moon lamp drum kite pear corn raft clam wolf bead taco sled jazz fern mint pond rock bark lark dove wren " +
+      "apple grape peach melon lemon berry flame river cloud stone brook cedar maple birch raven heron " +
+      "cactus walnut pickle donkey kettle pencil violin turnip beaver jigsaw anchor basket candle helmet lizard mitten noodle peanut rabbit saddle teapot wombat muffin forest meadow canyon breeze harbor " +
+      "pretzel popcorn gorilla giraffe dolphin hamster pelican raccoon biscuit cabbage leopard mustang pumpkin sardine terrier custard peacock rooster seagull opossum tadpole catfish muffins sunrise redwood glacier panther compass " +
+      "starfish kangaroo elephant flamingo dinosaur squirrel mandrill anteater hedgehog mongoose mackerel broccoli eggplant lavender doughnut omelette sandwich dumpling tortilla scallops cucumber zucchini mountain waterfall seashore " +
+      "crocodile butterfly artichoke asparagus jellyfish porcupine centipede albatross marmalade milkshake pineapple tangerine saxophone harmonica accordion sanctuary chameleon rainforest " +
+      "strawberry blackberry cantaloupe watermelon peppermint woodpecker caterpillar chimpanzee polarbear lighthouse meadowlark bluebonnet " +
+      "hummingbird pomegranate marshmallow cauliflower wheelbarrow skateboard microscopes salamanders " +
+      "cheeseburger hippopotamus strawberries kaleidoscope thoroughbred thunderstorm caterpillars grasshoppers " +
+      "constellation metamorphosis rhododendron chrysanthemum mountaineering hummingbirds " +
+      "photosynthesis microorganisms crystallization"
     ).split(/\s+/).filter(Boolean);
     var ENC = WORDS.slice();
     var SWAPPED = WORDS.map(function(){ return false; });
     function bestMatch(core){
       var L=core.length, lc=core.toLowerCase();
       var cands=RANDOM_POOL.filter(function(w){ return w.length===L && w!==lc; });
+      if(!cands.length) cands=RANDOM_POOL.filter(function(w){ return Math.abs(w.length-L)<=1 && w!==lc; });
       if(!cands.length) return null;
-      var cs=widthSig(lc);
-      cands.sort(function(a,b){ return sigDist(widthSig(a),cs)-sigDist(widthSig(b),cs); });
-      var top=cands.slice(0, Math.min(4, cands.length));
-      return top[Math.floor(Math.random()*top.length)];
+      var targetW = ctx.measureText(lc).width;
+      cands.sort(function(a,b){ return Math.abs(ctx.measureText(a).width - targetW) - Math.abs(ctx.measureText(b).width - targetW); });
+      return cands[0];
     }
     function buildDecoys(){
-      setFont(100);
       ENC = WORDS.map(function(word, k){
         var lead=(word.match(/^[^A-Za-z]+/)||[''])[0];
         var trail=(word.match(/[^A-Za-z]+$/)||[''])[0];
@@ -95,10 +99,10 @@
       });
     }
     buildDecoys();
-    /* break against the WIDER of plain vs ciphered so BOTH layers fit availW
-       on the same line groups — guarantees identical line counts, no overflow-wrap */
+    /* wrap using max(plain, encoded) width */
     function wrap(fs, maxW){
       setFont(fs);
+      buildDecoys();
       var lines=[];
       PARAS.forEach(function(arr, pi){
         var cur=[], start=PARA_START[pi];
@@ -163,6 +167,7 @@
       }
       hero.style.setProperty('--hero-fs', best.toFixed(1)+'px');
       setFont(best);
+      buildDecoys();
       var ws = WORDS.map(function(w){ return ctx.measureText(w).width; });
       var avg = ws.reduce(function(a,b){ return a+b; },0)/ws.length;
       heroBaseR = Math.round(Math.max(54, Math.min(170, avg*0.42)));
@@ -173,7 +178,17 @@
         return bestLines.map(function(l){
           var cls='hl'+((l.para!==prev && prev!==-1)?' pstart':''); prev=l.para;
           var inner = l.words.map(function(j){
-            return code ? '<span class="cword'+(SWAPPED[j]?' sw':'')+'" data-i="'+j+'">'+ENC[j]+'</span>' : WORDS[j];
+            if(SWAPPED[j]){
+              var wPlain = ctx.measureText(WORDS[j]).width;
+              var wEnc = ctx.measureText(ENC[j]).width;
+              var wMax = Math.max(wPlain, wEnc);
+              return code
+                ? '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;"><span class="cword sw" data-i="'+j+'">'+ENC[j]+'</span></span>'
+                : '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;">'+WORDS[j]+'</span>';
+            }
+            return code
+              ? '<span class="cword" data-i="'+j+'">'+ENC[j]+'</span>'
+              : WORDS[j];
           }).join(' ');
           return '<span class="'+cls+'">'+inner+'</span>';
         }).join('');

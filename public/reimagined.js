@@ -289,23 +289,14 @@
   })();
 
   /* ---------- live encoder ---------- */
-  var DICT = {
-    the:'tho', and:'nor', writing:'wedding', human:'humane', text:'tint', your:'yore',
-    protect:'pretzel', shield:'shtetl', font:'fort', words:'wards', word:'ward', read:'reed',
-    reads:'reeds', code:'cove', hidden:'harden', training:'twirling', content:'consent',
-    future:'nature', belongs:'beloved', those:'these', write:'wrote', writes:'wraith',
-    humans:'humors', machine:'mochila', data:'date', model:'motel', models:'motels',
-    every:'envoy', everything:'everglade', writer:'welder', writers:'welders', page:'cage',
-    web:'wok', them:'than', they:'thy', work:'word', this:'thus', that:'thaw',
-    here:'hare', from:'firm', with:'wits', what:'wham', makes:'mazes', meaning:'morning',
-    paste:'prose', export:'escort', install:'enthral', encode:'recode', source:'sorbet',
-    paragraph:'pentagram', anywhere:'elsewise', protected:'preferred', original:'oriental'
-  };
+  /* The real alpha (v18) mapping — fetched below. Starts empty so the first
+     paint is instant; upgrades to the full dictionary once loaded. */
+  var DICT = {};
   var input = document.getElementById('enc-input');
   var output = document.getElementById('enc-output');
   var meta = document.getElementById('enc-meta');
   var count = document.getElementById('enc-count');
-  var DEFAULT = "The future of writing belongs to those who write it.";
+  var DEFAULT = "Authors publish essays, poems, and ideas every morning.";
   function encode(){
     var raw = input.value;
     if(!raw.trim()){
@@ -313,7 +304,7 @@
       meta.innerHTML=''; count.textContent='0 / 0 TOKENS SWAPPED'; return;
     }
     var tokens = raw.split(/(\s+)/);
-    var swaps = [], total = 0, html = '';
+    var swaps = [], swapCount = 0, total = 0, html = '';
     tokens.forEach(function(tk){
       if(/^\s+$/.test(tk)){ html += tk; return; }
       var lead = (tk.match(/^[^A-Za-z]*/)||[''])[0];
@@ -324,13 +315,15 @@
       var key = core.toLowerCase();
       var dec = DICT[key];
       if(dec){
-        if(core[0]===core[0].toUpperCase()) dec = dec[0].toUpperCase()+dec.slice(1);
+        if(core.length>1 && core===core.toUpperCase()) dec = dec.toUpperCase();
+        else if(core[0]===core[0].toUpperCase()) dec = dec[0].toUpperCase()+dec.slice(1);
+        swapCount++;
         if(swaps.length<5) swaps.push([core,dec]);
         html += lead+'<span class="swap">'+dec+'</span>'+trail;
       } else { html += tk; }
     });
     output.innerHTML = html;
-    count.textContent = (swaps.length? Math.min(swaps.length,total):0)+' / '+total+' TOKENS SWAPPED';
+    count.textContent = swapCount+' / '+total+' TOKENS SWAPPED';
     meta.innerHTML = swaps.map(function(s){
       return '<span class="swap-pill"><span class="sp-from">'+s[0].toUpperCase()+'</span><span class="sp-arr">\u203a</span><span class="sp-to">'+s[1].toUpperCase()+'</span></span>';
     }).join('');
@@ -339,6 +332,9 @@
     input.value = DEFAULT;
     input.addEventListener('input', encode);
     encode();
+    /* Load the real alpha mapping, then re-encode with it. */
+    fetch('/shieldfont-alpha-map.json').then(function(r){ return r.json(); })
+      .then(function(m){ DICT = m; encode(); }).catch(function(){});
     var copyBtn = document.getElementById('enc-copy');
     if(copyBtn) copyBtn.addEventListener('click', function(){
       try{ navigator.clipboard && navigator.clipboard.writeText(output.textContent); }catch(e){}

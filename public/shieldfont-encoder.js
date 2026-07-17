@@ -3,13 +3,13 @@
  * https://github.com/isaqueseneda/shieldfont
  *
  * Usage (ESM):
- *   import { encode, decode, M15EN_ALPHA } from "https://cdn.jsdelivr.net/gh/isaqueseneda/shieldfont@v2.2.0/dist/shieldfont-encoder.js";
- *   const encoded = encode("The future of writing", M15EN_ALPHA);
+ *   import { encode, decode, alpha } from "https://cdn.jsdelivr.net/npm/@shieldfont/font@0.1.0/shieldfont-encoder.js";
+ *   const encoded = encode("The future of writing", alpha);
  *
  * Usage (script tag):
  *   <script type="module">
- *     import { encode, M15EN_ALPHA } from "https://cdn.jsdelivr.net/gh/isaqueseneda/shieldfont@v2.2.0/dist/shieldfont-encoder.js";
- *     console.log(encode("Hello world", M15EN_ALPHA));
+ *     import { encode, alpha } from "https://cdn.jsdelivr.net/npm/@shieldfont/font@0.1.0/shieldfont-encoder.js";
+ *     console.log(encode("Hello world", alpha));
  *   </script>
  *
  * License: AGPL-3.0
@@ -32,7 +32,7 @@ export function encode(text, mapping) {
 
 export const decode = encode;
 
-export const M15EN_ALPHA = {
+export const alpha = {
   "days": "minute",
   "minute": "days",
   "decades": "percent",

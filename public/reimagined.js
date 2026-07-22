@@ -546,13 +546,15 @@
      state the user picks; nothing flips it on its own. */
   (function(){
     var dw = document.getElementById('docwin');
-    var toggle = document.getElementById('audienceToggle');
-    if(!dw || !toggle) return;
-    var opts = Array.prototype.slice.call(toggle.querySelectorAll('.audience-opt'));
+    var toggles = Array.prototype.slice.call(document.querySelectorAll('.audience-toggle'));
+    if(!dw || !toggles.length) return;
     var targets = Array.prototype.slice.call(dw.querySelectorAll('.dw'));
     function setState(state){
-      toggle.setAttribute('data-state', state);
-      opts.forEach(function(o){ var on=o.getAttribute('data-aud')===state; o.classList.toggle('active',on); o.setAttribute('aria-checked',String(on)); });
+      toggles.forEach(function(toggle){
+        toggle.setAttribute('data-state', state);
+        var opts = toggle.querySelectorAll('.audience-opt');
+        opts.forEach(function(o){ var on=o.getAttribute('data-aud')===state; o.classList.toggle('active',on); o.setAttribute('aria-checked',String(on)); });
+      });
       var ai = state==='ai';
       dw.classList.toggle('is-ai', ai);
       targets.forEach(function(t){
@@ -560,6 +562,10 @@
         t.classList.toggle('dw-swap', ai);
       });
     }
-    opts.forEach(function(o){ o.addEventListener('click', function(){ setState(o.getAttribute('data-aud')); }); });
+    toggles.forEach(function(toggle){
+      toggle.querySelectorAll('.audience-opt').forEach(function(o){
+        o.addEventListener('click', function(){ setState(o.getAttribute('data-aud')); });
+      });
+    });
   })();
 })();

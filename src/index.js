@@ -19,25 +19,6 @@
 
 export default {
   async fetch(request, env) {
-    const user = env.SITE_USER ?? "";
-    const pass = env.SITE_PASS ?? "";
-
-    // Fail closed if credentials aren't configured — better to 503 than
-    // to accidentally serve the site unprotected.
-    if (!user || !pass) {
-      return new Response("Preview gate misconfigured (missing SITE_USER / SITE_PASS).", {
-        status: 503,
-      });
-    }
-
-    const expected = "Basic " + btoa(`${user}:${pass}`);
-    if (request.headers.get("Authorization") !== expected) {
-      return new Response("Authentication required", {
-        status: 401,
-        headers: { "WWW-Authenticate": 'Basic realm="Shield Font (preview)"' },
-      });
-    }
-
     return env.ASSETS.fetch(request);
   },
 };

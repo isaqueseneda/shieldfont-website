@@ -335,10 +335,11 @@
     /* Load the real alpha mapping, then re-encode with it. */
     fetch('/shieldfont-alpha-map.json').then(function(r){ return r.json(); })
       .then(function(m){ DICT = m; encode(); }).catch(function(){});
-    var copyBtn = document.getElementById('enc-copy');
-    if(copyBtn) copyBtn.addEventListener('click', function(){
-      try{ navigator.clipboard && navigator.clipboard.writeText(output.textContent); }catch(e){}
-      var t = copyBtn.querySelector('span'); if(t){ var o=t.textContent; t.textContent='COPIED'; setTimeout(function(){t.textContent=o;},1400); }
+    var publishBtn = document.getElementById('enc-publish');
+    if(publishBtn) publishBtn.addEventListener('click', function(){
+      /* Carry the typed text into the full editor. WriterEncoder reads this
+         localStorage key on load, so the <a href="/encoder"> nav picks it up. */
+      try{ localStorage.setItem('shieldfont-encoder-text', input.value || ''); }catch(e){}
     });
   }
 
@@ -549,6 +550,35 @@
     var toggles = Array.prototype.slice.call(document.querySelectorAll('.audience-toggle'));
     if(!dw || !toggles.length) return;
     var targets = Array.prototype.slice.call(dw.querySelectorAll('.dw'));
+
+    /* Reserve each swap slot at the width of its WIDER state (You vs AI, including the
+       AI badge padding) so flipping the toggle never reflows the line — the same
+       "match the footprint" trick the spotlight uses. Recomputed on font-load and
+       resize because the doc-window font-size is fluid (clamp). */
+    function reserveWidths(){
+      targets.forEach(function(t){
+        var cs = getComputedStyle(t);
+        var fs = parseFloat(cs.fontSize) || 24;
+        var probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;white-space:nowrap;';
+        probe.style.fontFamily = cs.fontFamily; probe.style.fontWeight = cs.fontWeight;
+        probe.style.fontSize = cs.fontSize; probe.style.fontStyle = cs.fontStyle;
+        probe.style.letterSpacing = cs.letterSpacing;
+        document.body.appendChild(probe);
+        probe.textContent = t.getAttribute('data-real') || t.textContent;
+        var wReal = probe.getBoundingClientRect().width;
+        probe.textContent = t.getAttribute('data-dec') || t.textContent;
+        var wDec = probe.getBoundingClientRect().width;
+        document.body.removeChild(probe);
+        // You state pads .02em/side; the AI badge pads .2em/side (see .docwin .dw / .dw-swap).
+        var reserved = Math.max(wReal + 0.04 * fs, wDec + 0.40 * fs);
+        t.style.minWidth = Math.ceil(reserved) + 'px';
+      });
+    }
+    reserveWidths();
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(reserveWidths);
+    var rwT; window.addEventListener('resize', function(){ clearTimeout(rwT); rwT = setTimeout(reserveWidths, 120); });
+
     function setState(state){
       toggles.forEach(function(toggle){
         toggle.setAttribute('data-state', state);

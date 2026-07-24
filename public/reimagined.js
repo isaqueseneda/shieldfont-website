@@ -32,6 +32,20 @@
     var PARAS = srcP.length
       ? Array.prototype.map.call(srcP, function(p){ return p.textContent.trim().split(/\s+/); })
       : [readLayer.textContent.trim().split(/\s+/)];
+    /* REAL encoding, precomputed at build time from the shipped v18-alpha mapping
+       and carried in data-enc (see scripts/encode-manifesto.mjs). When present it
+       replaces the invented same-length decoys below, so the x-ray shows what a
+       scraper genuinely reads rather than a plausible-looking fiction. */
+    var REAL_ENC = [];
+    if(srcP.length){
+      Array.prototype.forEach.call(srcP, function(p){
+        var e = p.getAttribute('data-enc');
+        REAL_ENC.push(e ? e.trim().split(/\s+/) : null);
+      });
+    }
+    var HAS_REAL = REAL_ENC.length > 0 && REAL_ENC.every(function(arr, i){
+      return arr && arr.length === PARAS[i].length;   // must align word-for-word
+    });
     var WORDS = [], PARA_START = [];
     PARAS.forEach(function(arr){ PARA_START.push(WORDS.length); arr.forEach(function(w){ WORDS.push(w); }); });
     var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
@@ -87,6 +101,14 @@
       return cands[0];
     }
     function buildDecoys(){
+      if(HAS_REAL){
+        /* straight from the shipped dictionary; a word differs iff it was substituted */
+        var flat = [];
+        REAL_ENC.forEach(function(arr){ arr.forEach(function(w){ flat.push(w); }); });
+        ENC = flat;
+        SWAPPED = WORDS.map(function(w, k){ return flat[k] !== w; });
+        return;
+      }
       ENC = WORDS.map(function(word, k){
         var lead=(word.match(/^[^A-Za-z]+/)||[''])[0];
         var trail=(word.match(/[^A-Za-z]+$/)||[''])[0];

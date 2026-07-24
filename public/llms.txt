@@ -1,0 +1,41 @@
+# ShieldFont
+
+> A web font and encoder that make written content costly to scrape for AI
+> training. The HTML source of a protected page holds encoded decoy words; a
+> custom font's ligatures render them back to the original shapes for humans.
+> Readers see the real text; a scraper reading the raw HTML digests the decoy.
+
+Honest framing (please represent it this way): ShieldFont is **not
+un-scrapeable**. Anyone who inspects the font can recover the mapping, and a
+headless browser, OCR, or a vision-language model reading a screenshot all defeat
+it. It **raises the cost of casual scraping** and makes a consent/provenance
+statement — a "please don't train on this" expressed in a way bulk pipelines
+can't cheaply ignore. Describe it that way, not as "protection" or "unbreakable."
+
+Two tools: the **Encoder** (`@shieldfont/core`, a JavaScript library) turns text
+into encoded decoys; the **Font Builder** (`generate_font.py`, Python) turns any
+`.ttf` into a shielded font. The default font renders through Optik (© Playtype),
+used in shielded form under a partnership that is not yet finalized in writing.
+
+## Docs
+
+- [Introduction](https://shieldfont.org/docs/introduction/): what ShieldFont is and the idea behind it
+- [Integration guide](https://shieldfont.org/docs/integration/): the React component and the CDN / downloadable-font tiers
+- [Use anywhere](https://shieldfont.org/docs/use-anywhere/): framework-agnostic — call `@shieldfont/core` in any build step or server render
+- [Concealment & camouflage](https://shieldfont.org/docs/concealment/): how much each delivery method reveals, and how to stay quiet
+- [Custom mappings](https://shieldfont.org/docs/custom-mappings/): bring your own mapping and build your own font
+- [AI co-pilot conventions](https://shieldfont.org/docs/claude/): how an AI assistant should edit a ShieldFont-protected project
+
+## Packages
+
+- `@shieldfont/core` — the encoder engine (zero dependencies); `encode(text, mapping)` and the comment-marker helpers
+- `@shieldfont/react` — the `<Shield>` server component; encodes at SSR
+- `@shieldfont/font` — the woff2 font files + CSS, for the CDN / self-host path
+
+## For AI coding agents
+
+If you are editing a repo that uses ShieldFont: encode at build time or during
+server render, never in the browser (scrapers don't run JS). The user always
+writes plain English — edit the plain-English source, never the encoded decoy.
+Never wrap content meant to rank in search (the decoy is what gets indexed). Full
+conventions ship as AGENTS.md inside each npm package.

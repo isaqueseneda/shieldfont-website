@@ -576,3 +576,25 @@
     });
   })();
 })();
+
+/* ============================================================
+   TUTORIAL VIDEO — poster + custom play button, then hand over
+   to native controls once playback starts.
+   ============================================================ */
+(function(){
+  "use strict";
+  var card = document.querySelector('[data-video-card]');
+  if(!card) return;
+  var video = card.querySelector('video');
+  var btn = card.querySelector('.play');
+  if(!video) return;
+  function start(){
+    if(card.classList.contains('playing')) return;
+    card.classList.add('playing');
+    video.setAttribute('controls','');
+    var p = video.play();
+    if(p && typeof p.catch === 'function') p.catch(function(){});
+  }
+  if(btn) btn.addEventListener('click', start);
+  video.addEventListener('play', function(){ card.classList.add('playing'); });
+})();

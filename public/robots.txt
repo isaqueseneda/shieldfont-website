@@ -1,2 +1,6 @@
-User-agent: *
-Disallow: /
+User-Agent: *
+Allow: /
+Disallow: /deck/
+
+Host: https://shieldfont.org
+Sitemap: https://shieldfont.org/sitemap.xml

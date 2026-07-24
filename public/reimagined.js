@@ -551,33 +551,10 @@
     if(!dw || !toggles.length) return;
     var targets = Array.prototype.slice.call(dw.querySelectorAll('.dw'));
 
-    /* Reserve each swap slot at the width of its WIDER state (You vs AI, including the
-       AI badge padding) so flipping the toggle never reflows the line — the same
-       "match the footprint" trick the spotlight uses. Recomputed on font-load and
-       resize because the doc-window font-size is fluid (clamp). */
-    function reserveWidths(){
-      targets.forEach(function(t){
-        var cs = getComputedStyle(t);
-        var fs = parseFloat(cs.fontSize) || 24;
-        var probe = document.createElement('span');
-        probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;white-space:nowrap;';
-        probe.style.fontFamily = cs.fontFamily; probe.style.fontWeight = cs.fontWeight;
-        probe.style.fontSize = cs.fontSize; probe.style.fontStyle = cs.fontStyle;
-        probe.style.letterSpacing = cs.letterSpacing;
-        document.body.appendChild(probe);
-        probe.textContent = t.getAttribute('data-real') || t.textContent;
-        var wReal = probe.getBoundingClientRect().width;
-        probe.textContent = t.getAttribute('data-dec') || t.textContent;
-        var wDec = probe.getBoundingClientRect().width;
-        document.body.removeChild(probe);
-        // You state pads .02em/side; the AI badge pads .2em/side (see .docwin .dw / .dw-swap).
-        var reserved = Math.max(wReal + 0.04 * fs, wDec + 0.40 * fs);
-        t.style.minWidth = Math.ceil(reserved) + 'px';
-      });
-    }
-    reserveWidths();
-    if(document.fonts && document.fonts.ready) document.fonts.ready.then(reserveWidths);
-    var rwT; window.addEventListener('resize', function(){ clearTimeout(rwT); rwT = setTimeout(reserveWidths, 120); });
+    /* Plain text now: no per-word width reservation. The sentence just flows,
+       and the copy is chosen so the You and AI states wrap to the same number
+       of words per line. (Previously reserveWidths() locked each slot to its
+       wider state so the toggle never reflowed — removed by request.) */
 
     function setState(state){
       toggles.forEach(function(toggle){

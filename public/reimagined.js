@@ -32,25 +32,33 @@
     var PARAS = srcP.length
       ? Array.prototype.map.call(srcP, function(p){ return p.textContent.trim().split(/\s+/); })
       : [readLayer.textContent.trim().split(/\s+/)];
-    /* REAL encoding, precomputed at build time from the shipped v18-alpha mapping
-       and carried in data-enc (see scripts/encode-manifesto.mjs). When present it
-       replaces the invented same-length decoys below, so the x-ray shows what a
-       scraper genuinely reads rather than a plausible-looking fiction. */
-    var REAL_ENC = [];
-    if(srcP.length){
-      Array.prototype.forEach.call(srcP, function(p){
-        var e = p.getAttribute('data-enc');
-        REAL_ENC.push(e ? e.trim().split(/\s+/) : null);
-      });
-    }
-    var HAS_REAL = REAL_ENC.length > 0 && REAL_ENC.every(function(arr, i){
-      return arr && arr.length === PARAS[i].length;   // must align word-for-word
-    });
     var WORDS = [], PARA_START = [];
     PARAS.forEach(function(arr){ PARA_START.push(WORDS.length); arr.forEach(function(w){ WORDS.push(w); }); });
+    /* The DOM already holds the ENCODED text (see app/page.tsx): this section is
+       genuinely shielded, not a mock-up. So both layers render the SAME words;
+       only the font differs. The read layer uses the shielded font, whose
+       ligatures map each encoded word back to the original word's shape, and the
+       code layer uses the normal font so you see the decoys as written.
+       data-swapped lists which indices were substituted (no plaintext ships). */
+    var SWAP_IDX = {};
+    if(srcP.length){
+      var base = 0;
+      Array.prototype.forEach.call(srcP, function(p, pi){
+        var raw = (p.getAttribute('data-swapped') || '').split(',');
+        raw.forEach(function(n){ n = parseInt(n, 10); if(!isNaN(n)) SWAP_IDX[base + n] = true; });
+        base += PARAS[pi].length;
+      });
+    }
+    var HAS_REAL = Object.keys(SWAP_IDX).length > 0;
+
     var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
     var LH = 1.18, LS = -0.02, PARA_GAP = 0.85, heroR = 120, heroBaseR = 120, radiusMul = 1.5;
-    function setFont(fs){ ctx.font = '500 '+fs+'px Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
+    /* Measure in the SHIELDED font: that is what the read layer renders, and its
+       ligatures make each encoded word occupy the ORIGINAL word's width (verified:
+       "walled" measures 193px here vs 118px in plain Optik, and "developed" is
+       192px). Measuring in plain Optik laid the lines out ~40% too narrow and the
+       x-ray layers drifted apart. */
+    function setFont(fs){ ctx.font = '500 '+fs+'px "ShieldFont Optik", Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
 
     /* whole-WORD decoys: swap each word for a real word of the SAME length whose
        per-letter widths most closely match the original (so e.g. a wide 'w' maps to a
@@ -102,11 +110,9 @@
     }
     function buildDecoys(){
       if(HAS_REAL){
-        /* straight from the shipped dictionary; a word differs iff it was substituted */
-        var flat = [];
-        REAL_ENC.forEach(function(arr){ arr.forEach(function(w){ flat.push(w); }); });
-        ENC = flat;
-        SWAPPED = WORDS.map(function(w, k){ return flat[k] !== w; });
+        /* the source IS the encoding: identical text both sides, different font */
+        ENC = WORDS.slice();
+        SWAPPED = WORDS.map(function(_w, k){ return !!SWAP_IDX[k]; });
         return;
       }
       ENC = WORDS.map(function(word, k){
@@ -200,17 +206,17 @@
         return bestLines.map(function(l){
           var cls='hl'+((l.para!==prev && prev!==-1)?' pstart':''); prev=l.para;
           var inner = l.words.map(function(j){
-            if(SWAPPED[j]){
-              var wPlain = ctx.measureText(WORDS[j]).width;
-              var wEnc = ctx.measureText(ENC[j]).width;
-              var wMax = Math.max(wPlain, wEnc);
-              return code
-                ? '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;"><span class="cword sw" data-i="'+j+'">'+ENC[j]+'</span></span>'
-                : '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;">'+WORDS[j]+'</span>';
-            }
-            return code
-              ? '<span class="cword" data-i="'+j+'">'+ENC[j]+'</span>'
-              : WORDS[j];
+            /* Both layers hold the same encoded string but render in different
+               fonts, so EVERY word is boxed to the read layer's measured width.
+               Without this the narrower code layer drifts out of registration
+               and the x-ray reveal no longer lines up with the text under it. */
+            var cls = 'cword' + (SWAPPED[j] ? ' sw' : '');
+            if(!code) return WORDS[j];           // read layer flows naturally
+            /* Only the CODE layer is boxed, to the width the read layer actually
+               renders (shielded font, ligature applied). Boxing both padded every
+               word twice and made the manifesto read airy. */
+            var box = ctx.measureText(WORDS[j]).width.toFixed(2);
+            return '<span style="display:inline-block; min-width:'+box+'px;"><span class="'+cls+'" data-i="'+j+'">'+ENC[j]+'</span></span>';
           }).join(' ');
           return '<span class="'+cls+'">'+inner+'</span>';
         }).join('');

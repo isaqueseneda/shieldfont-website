@@ -32,33 +32,38 @@
     var PARAS = srcP.length
       ? Array.prototype.map.call(srcP, function(p){ return p.textContent.trim().split(/\s+/); })
       : [readLayer.textContent.trim().split(/\s+/)];
-    var WORDS = [], PARA_START = [];
-    PARAS.forEach(function(arr){ PARA_START.push(WORDS.length); arr.forEach(function(w){ WORDS.push(w); }); });
-    /* The DOM already holds the ENCODED text (see app/page.tsx): this section is
-       genuinely shielded, not a mock-up. So both layers render the SAME words;
-       only the font differs. The read layer uses the shielded font, whose
-       ligatures map each encoded word back to the original word's shape, and the
-       code layer uses the normal font so you see the decoys as written.
-       data-swapped lists which indices were substituted (no plaintext ships). */
-    var SWAP_IDX = {};
+    /* REAL encoding, precomputed at build time from the shipped v18-alpha mapping
+       and carried in data-enc (see scripts/encode-manifesto.mjs). When present it
+       replaces the invented same-length decoys below, so the x-ray shows what a
+       scraper genuinely reads rather than a plausible-looking fiction. */
+    var REAL_ENC = [];
     if(srcP.length){
-      var base = 0;
-      Array.prototype.forEach.call(srcP, function(p, pi){
-        var raw = (p.getAttribute('data-swapped') || '').split(',');
-        raw.forEach(function(n){ n = parseInt(n, 10); if(!isNaN(n)) SWAP_IDX[base + n] = true; });
-        base += PARAS[pi].length;
+      Array.prototype.forEach.call(srcP, function(p){
+        var e = p.getAttribute('data-enc');
+        REAL_ENC.push(e ? e.trim().split(/\s+/) : null);
       });
     }
-    var HAS_REAL = Object.keys(SWAP_IDX).length > 0;
-
+    var HAS_REAL = REAL_ENC.length > 0 && REAL_ENC.every(function(arr, i){
+      return arr && arr.length === PARAS[i].length;   // must align word-for-word
+    });
+    var WORDS = [], PARA_START = [];
+    PARAS.forEach(function(arr){ PARA_START.push(WORDS.length); arr.forEach(function(w){ WORDS.push(w); }); });
     var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-    var LH = 1.18, LS = -0.02, PARA_GAP = 0.85, heroR = 120, heroBaseR = 120, radiusMul = 1.5;
-    /* Measure in the SHIELDED font: that is what the read layer renders, and its
-       ligatures make each encoded word occupy the ORIGINAL word's width (verified:
-       "walled" measures 193px here vs 118px in plain Optik, and "developed" is
-       192px). Measuring in plain Optik laid the lines out ~40% too narrow and the
-       x-ray layers drifted apart. */
-    function setFont(fs){ ctx.font = '500 '+fs+'px "ShieldFont Optik", Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
+    /* Spotlight size. radiusMul is the single knob — the mask radius (--eye-r),
+       the visible green circle and the caption offset all derive from heroR.
+       1.8 = the old 1.5 plus 20%, i.e. radius 81px -> 97px.
+
+       Note heroBaseR below intends to track the type size (avg word width * 0.42)
+       but in practice always lands on its 54px floor, because avg word width
+       never gets near 129px. So the spotlight is a FIXED 194px circle at every
+       viewport, not a proportional one: 13% of a 1440 screen but 61% of a 320
+       phone. Raise the 0.42 or drop the floor if you want it to actually scale. */
+    var LH = 1.18, LS = -0.02, PARA_GAP = 0.85, heroR = 120, heroBaseR = 120, radiusMul = 1.8;
+    /* BOTH layers render in the normal site font, so one measurement serves both.
+       Do not swap this for a shielded font: the read layer holds plain English
+       and the code layer holds the encoding, and they are kept in registration by
+       boxing each swapped word to max(plain, encoded) on BOTH sides. */
+    function setFont(fs){ ctx.font = '500 '+fs+'px Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
 
     /* whole-WORD decoys: swap each word for a real word of the SAME length whose
        per-letter widths most closely match the original (so e.g. a wide 'w' maps to a
@@ -110,9 +115,11 @@
     }
     function buildDecoys(){
       if(HAS_REAL){
-        /* the source IS the encoding: identical text both sides, different font */
-        ENC = WORDS.slice();
-        SWAPPED = WORDS.map(function(_w, k){ return !!SWAP_IDX[k]; });
+        /* straight from the shipped dictionary; a word differs iff it was substituted */
+        var flat = [];
+        REAL_ENC.forEach(function(arr){ arr.forEach(function(w){ flat.push(w); }); });
+        ENC = flat;
+        SWAPPED = WORDS.map(function(w, k){ return flat[k] !== w; });
         return;
       }
       ENC = WORDS.map(function(word, k){
@@ -206,17 +213,21 @@
         return bestLines.map(function(l){
           var cls='hl'+((l.para!==prev && prev!==-1)?' pstart':''); prev=l.para;
           var inner = l.words.map(function(j){
-            /* Both layers hold the same encoded string but render in different
-               fonts, so EVERY word is boxed to the read layer's measured width.
-               Without this the narrower code layer drifts out of registration
-               and the x-ray reveal no longer lines up with the text under it. */
-            var cls = 'cword' + (SWAPPED[j] ? ' sw' : '');
-            if(!code) return WORDS[j];           // read layer flows naturally
-            /* Only the CODE layer is boxed, to the width the read layer actually
-               renders (shielded font, ligature applied). Boxing both padded every
-               word twice and made the manifesto read airy. */
-            var box = ctx.measureText(WORDS[j]).width.toFixed(2);
-            return '<span style="display:inline-block; min-width:'+box+'px;"><span class="'+cls+'" data-i="'+j+'">'+ENC[j]+'</span></span>';
+            /* REGISTRATION. A swapped word is a different string on each layer, so
+               it is boxed to max(plain, encoded) on BOTH sides — same box, same
+               position, and the reveal lands exactly on the word it replaces.
+               Unswapped words need no box: identical text, identical font. */
+            if(SWAPPED[j]){
+              var wPlain = ctx.measureText(WORDS[j]).width;
+              var wEnc = ctx.measureText(ENC[j]).width;
+              var wMax = Math.max(wPlain, wEnc);
+              return code
+                ? '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;"><span class="cword sw" data-i="'+j+'">'+ENC[j]+'</span></span>'
+                : '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;">'+WORDS[j]+'</span>';
+            }
+            return code
+              ? '<span class="cword" data-i="'+j+'">'+ENC[j]+'</span>'
+              : WORDS[j];
           }).join(' ');
           return '<span class="'+cls+'">'+inner+'</span>';
         }).join('');
@@ -254,22 +265,55 @@
     setTimeout(fit, 350);
     var rt; window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(fit, 140); });
 
-    /* TEMP — spotlight radius slider */
+    /* ---- optically center the ⠿ grab glyph ----
+       Optik carries no braille, so the pill's glyph renders from whatever
+       symbols font the device falls back to — and those cells pack lopsided
+       side bearings (and top-heavy ink: dots 123456 leave the bottom row
+       empty). Grid centering only centers the em box, so measure the real
+       ink with canvas TextMetrics and nudge the glyph onto the pill's
+       optical center. Runs only where the pill is displayed (touch). */
     (function(){
-      var spot=document.getElementById('spotRange'), spotOut=document.getElementById('spotVal');
-      if(!spot) return;
-      spot.addEventListener('input', function(){
-        radiusMul = parseFloat(spot.value);
-        if(spotOut) spotOut.textContent = radiusMul.toFixed(1)+'\u00d7';
-        heroR = Math.round(heroBaseR * radiusMul);
-        if(eyeCursor){ eyeCursor.style.width=eyeCursor.style.height=(heroR*2)+'px'; eyeCursor.style.margin=(-heroR)+'px 0 0 '+(-heroR)+'px'; }
-        if(readWrap) readWrap.style.setProperty('--eye-r', heroR+'px');
-      });
+      var glyphEl = eyeCursor ? eyeCursor.querySelector('.eye-grab-glyph') : null;
+      if(!glyphEl) return;
+      function centerInk(){
+        var grabEl = glyphEl.parentNode;
+        if(!grabEl || getComputedStyle(grabEl).display === 'none') return;
+        var ctx = document.createElement('canvas').getContext('2d');
+        if(!ctx || !ctx.measureText) return;
+        var cs = getComputedStyle(glyphEl);
+        ctx.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        var m = ctx.measureText('⠿');
+        if(m.actualBoundingBoxLeft === undefined) return;  /* old engine: leave the em box */
+        glyphEl.style.transform = 'none';                  /* measure from the uncorrected spot */
+        var box = glyphEl.getBoundingClientRect();
+        if(!box.width) return;
+        /* baseline probe: a zero-size inline-block sits its bottom on the baseline */
+        var probe = document.createElement('span');
+        probe.style.cssText = 'display:inline-block;width:0;height:0;';
+        glyphEl.appendChild(probe);
+        var baseline = probe.getBoundingClientRect().top;
+        probe.remove();
+        /* ink spans [left - aBBL, left + aBBR] x [baseline - aBBA, baseline + aBBD] */
+        var inkCx = box.left + (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2;
+        var inkCy = baseline + (m.actualBoundingBoxDescent - m.actualBoundingBoxAscent) / 2;
+        var dx = (box.left + box.width / 2) - inkCx;
+        var dy = (box.top + box.height / 2) - inkCy;
+        glyphEl.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px)';
+      }
+      centerInk();
+      /* re-measure once real fonts are in, in case the fallback shifts */
+      if(document.fonts && document.fonts.ready) document.fonts.ready.then(centerInk);
     })();
 
-    /* ---- reveal circle: continuous slow auto-drift (mobile + desktop); hover overrides ---- */
+    /* ---- reveal circle: slow auto-drift; hover follows; drag-the-torch pins ----
+       State machine: driftOn (idle Lissajous) → hover follow (desktop
+       pointermove) → dragging (pointer capture on the lens/handle, any
+       screen) → pinned (released: hole + caption hold where dropped and ride
+       with the text on scroll). Hover movement releases a pin back to the
+       baseline; on touch a pin stays until the next grab. */
     if(xray && readWrap && eyeCursor && !reduce){
       function setHole(cx, cy){
+        holeX = cx; holeY = cy;
         var rect = readWrap.getBoundingClientRect();
         readWrap.style.setProperty('--eye-x', (cx-rect.left)+'px');
         readWrap.style.setProperty('--eye-y', (cy-rect.top)+'px');
@@ -291,13 +335,86 @@
         caption.style.left = Math.max(minX, Math.min(maxX, cx)) + 'px';
       }
       function updateSelection(cx, cy){
-        if(caption){ caption.classList.add('on'); placeCaption(cx, cy); }
+        /* keep placing even while dismissed, so the caption reappears
+           already in the right spot instead of jumping */
+        if(caption){ if(!captionHidden) caption.classList.add('on'); placeCaption(cx, cy); }
       }
       function inView(){ var r=hero.getBoundingClientRect(); return r.bottom>80 && r.top<window.innerHeight; }
       var canHover = matchMedia('(hover:hover) and (pointer:fine)').matches;
       var driftOn = true, lastMove = 0;
+      /* drag-the-torch state: `dragging` while a grab is live; `pinned` after
+         a release — the hole and caption hold where dropped. holeX/holeY is
+         the last hole centre (viewport px); pinDX/pinDY the pinned spot in
+         hero-text space, so a pin rides with the text on scroll. */
+      var pinned = false, dragging = false;
+      var holeX = 0, holeY = 0, grabDX = 0, grabDY = 0, pinDX = 0, pinDY = 0;
+      /* caption dismissal. A press that travels under TAP_SLOP px and
+         releases inside TAP_MS is a click/tap, never a drag: on desktop a
+         click toggles the caption; on touch a tap hides it and the next
+         real drag of the lens brings it back. Drags never toggle. */
+      var TAP_SLOP = 6, TAP_MS = 400;
+      var captionHidden = false;
+      var downX = 0, downY = 0, downT = 0, downMoved = true;
+      function pressStart(e){ downX = e.clientX; downY = e.clientY; downT = performance.now(); downMoved = false; }
+      function pressMoved(e){
+        if(Math.abs(e.clientX - downX) > TAP_SLOP || Math.abs(e.clientY - downY) > TAP_SLOP) downMoved = true;
+      }
+      function wasTap(){ return !downMoved && (performance.now() - downT) < TAP_MS; }
+      function hideCaption(){ captionHidden = true; if(caption) caption.classList.remove('on'); }
+      function showCaption(){
+        captionHidden = false;
+        if(caption && eyeCursor.classList.contains('on')){ caption.classList.add('on'); placeCaption(holeX, holeY); }
+      }
+      function clampToHero(x, y){
+        var r = readWrap.getBoundingClientRect();
+        return [Math.max(r.left+8, Math.min(r.right-8, x)), Math.max(r.top+8, Math.min(r.bottom-8, y))];
+      }
+      function beginDrag(surface, e, keepOffset){
+        dragging = true; pinned = false; driftOn = false; lastMove = performance.now();
+        pressStart(e);                         /* arm the click/tap-vs-drag call */
+        /* keep the grab offset so the lens doesn't jump under the finger */
+        if(keepOffset && eyeCursor.classList.contains('on')){ grabDX = holeX - e.clientX; grabDY = holeY - e.clientY; }
+        else { grabDX = 0; grabDY = 0; }
+        eyeCursor.classList.add('held');       /* the pulse hint dies for good */
+        eyeCursor.classList.add('dragging');
+        try{ surface.setPointerCapture(e.pointerId); }catch(_){}
+        var p = clampToHero(e.clientX + grabDX, e.clientY + grabDY);
+        setHole(p[0], p[1]);
+        if(e.cancelable) e.preventDefault();   /* keeps text selection out of the drag */
+      }
+      function moveDrag(e){
+        if(!dragging) return;
+        lastMove = performance.now();
+        pressMoved(e);
+        /* on touch, a real drag of the lens is the "I'm engaging again"
+           signal — a tap-dismissed caption comes back and rides along */
+        if(downMoved && !canHover && captionHidden) showCaption();
+        var p = clampToHero(e.clientX + grabDX, e.clientY + grabDY);
+        setHole(p[0], p[1]);
+      }
+      function endDrag(e){
+        if(!dragging) return;
+        dragging = false; pinned = true;       /* stays where dropped — drift does not resume */
+        eyeCursor.classList.remove('dragging');
+        var r = readWrap.getBoundingClientRect();
+        pinDX = holeX - r.left; pinDY = holeY - r.top;
+        /* desktop only: a clean release with no real travel = click, which
+           toggles the caption (pointercancel never counts). Touch taps are
+           handled by the document-level tracker below, on purpose — they
+           must not depend on this drag machinery. */
+        if(canHover && e && e.type === 'pointerup' && wasTap()){
+          if(captionHidden) showCaption(); else hideCaption();
+        }
+      }
       function drift(now){
-        if(driftOn){
+        if(dragging){
+          /* pointer capture drives the hole */
+        } else if(pinned){
+          if(inView()){
+            var rp = readWrap.getBoundingClientRect();
+            setHole(rp.left + pinDX, rp.top + pinDY);   /* pinned to the TEXT, not the screen */
+          } else { eyeCursor.classList.remove('on'); if(caption) caption.classList.remove('on'); }
+        } else if(driftOn){
           if(inView()){
             var rect = readWrap.getBoundingClientRect();
             // very slow Lissajous drift across the text band — gentle, never overwhelming
@@ -309,9 +426,59 @@
         requestAnimationFrame(drift);
       }
       requestAnimationFrame(drift);
+      /* touch grab surface: the lens circle and its handle pill (the pill is
+         touch-only in the CSS). On desktop the lens takes no pointer events,
+         so these never fire there and hover reaches the hero underneath. */
+      eyeCursor.addEventListener('pointerdown', function(e){
+        if(e.button !== undefined && e.button !== 0) return;
+        beginDrag(eyeCursor, e, true);
+      });
+      eyeCursor.addEventListener('pointermove', moveDrag);
+      eyeCursor.addEventListener('pointerup', endDrag);
+      eyeCursor.addEventListener('pointercancel', endDrag);
       if(canHover){
-        hero.addEventListener('pointermove', function(e){ driftOn=false; lastMove=performance.now(); setHole(e.clientX, e.clientY); });
-        hero.addEventListener('pointerleave', function(){ driftOn=true; });
+        /* hover = baseline: follow the cursor; plain movement releases a pin.
+           The lens rides under the cursor here, so pressing the text IS
+           grabbing the lens — press-drag-release pins it where dropped. */
+        hero.addEventListener('pointermove', function(e){
+          if(dragging){ moveDrag(e); return; }
+          pinned = false; driftOn = false; lastMove = performance.now();
+          setHole(e.clientX, e.clientY);
+        });
+        hero.addEventListener('pointerleave', function(){ if(!dragging && !pinned) driftOn = true; });
+        hero.addEventListener('pointerdown', function(e){
+          if(e.button !== 0) return;
+          if(e.target.closest('a,button')) return;   /* hero links/buttons keep their clicks */
+          beginDrag(hero, e, false);
+        });
+        hero.addEventListener('pointerup', endDrag);
+        hero.addEventListener('pointercancel', endDrag);
+      } else {
+        /* touch: ANY tap — on the lens or anywhere over the hero band —
+           dismisses the caption. Tracked at document level, capture phase,
+           with its own press state so the drag machinery can never
+           interfere (pointer capture retargets moves to the lens, but they
+           still pass through document capture). Nothing is prevented, so
+           the page scrolls as ever; a scroll or drag travels past TAP_SLOP
+           and stops reading as a tap. The caption returns on the next real
+           drag of the lens (see moveDrag). */
+        var tapX = 0, tapY = 0, tapT = 0, tapLive = false;
+        document.addEventListener('pointerdown', function(e){
+          tapLive = false;
+          if(e.target.closest && e.target.closest('a,button')) return;  /* links/buttons keep their taps */
+          var r = hero.getBoundingClientRect();
+          var overHero = e.clientY >= r.top && e.clientY <= r.bottom;
+          if(!overHero && !eyeCursor.contains(e.target)) return;
+          tapX = e.clientX; tapY = e.clientY; tapT = performance.now(); tapLive = true;
+        }, true);
+        document.addEventListener('pointermove', function(e){
+          if(tapLive && (Math.abs(e.clientX - tapX) > TAP_SLOP || Math.abs(e.clientY - tapY) > TAP_SLOP)) tapLive = false;
+        }, true);
+        document.addEventListener('pointerup', function(){
+          if(tapLive && (performance.now() - tapT) < TAP_MS) hideCaption();
+          tapLive = false;
+        }, true);
+        document.addEventListener('pointercancel', function(){ tapLive = false; }, true);
       }
     }
   })();
@@ -322,6 +489,12 @@
   var DICT = {};
   var input = document.getElementById('enc-input');
   var output = document.getElementById('enc-output');
+  var marks = document.getElementById('enc-marks');
+  function escHtml(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  /* LINE REGISTRATION (words, not widths): the input mirror wraps
+     naturally; we then measure how many words landed on each of its lines
+     and force the output to break after the same word counts, so both
+     panes always show the same words per line. */
   var meta = document.getElementById('enc-meta');
   var count = document.getElementById('enc-count');
   var DEFAULT = "Authors publish essays, poems, and ideas every morning.";
@@ -329,16 +502,18 @@
     var raw = input.value;
     if(!raw.trim()){
       output.innerHTML = '<span class="ph">Your protected text appears here\u2026</span>';
+      if(marks) marks.innerHTML = '';
       meta.innerHTML=''; count.textContent='0 / 0 TOKENS SWAPPED'; return;
     }
     var tokens = raw.split(/(\s+)/);
-    var swaps = [], swapCount = 0, total = 0, html = '';
+    var swaps = [], swapCount = 0, total = 0, marksHtml = '';
+    var words = [];   /* [{dec:decoy-or-null, tk, lead, core, trail}] in order */
     tokens.forEach(function(tk){
-      if(/^\s+$/.test(tk)){ html += tk; return; }
+      if(/^\s+$/.test(tk)){ marksHtml += tk; words.push(null); return; }
       var lead = (tk.match(/^[^A-Za-z]*/)||[''])[0];
       var trail = (tk.match(/[^A-Za-z]*$/)||[''])[0];
       var core = tk.slice(lead.length, tk.length-trail.length);
-      if(!core){ html += tk; return; }
+      if(!core){ marksHtml += escHtml(tk); words.push(null); return; }
       total++;
       var key = core.toLowerCase();
       var dec = DICT[key];
@@ -347,10 +522,58 @@
         else if(core[0]===core[0].toUpperCase()) dec = dec[0].toUpperCase()+dec.slice(1);
         swapCount++;
         if(swaps.length<5) swaps.push([core,dec]);
-        html += lead+'<span class="swap">'+dec+'</span>'+trail;
-      } else { html += tk; }
+        marksHtml += escHtml(lead)+'<span class="enc-w enc-mark">'+escHtml(core)+'</span>'+escHtml(trail);
+        words.push({dec:dec, lead:lead, trail:trail});
+      } else {
+        marksHtml += escHtml(lead)+'<span class="enc-w">'+escHtml(core)+'</span>'+escHtml(trail);
+        words.push({dec:null, tk:tk});
+      }
     });
-    output.innerHTML = html;
+    if(marks) marks.innerHTML = marksHtml + '\n';
+    /* measure the mirror's natural wrap: words per line */
+    var perLine = [];
+    if(marks){
+      var ws = marks.querySelectorAll('.enc-w');
+      var lastTop = null, runCount = 0;
+      Array.prototype.forEach.call(ws, function(w){
+        var t = Math.round(w.getBoundingClientRect().top);
+        if(lastTop === null || Math.abs(t - lastTop) < 4){ runCount++; }
+        else { perLine.push(runCount); runCount = 1; }
+        lastTop = t;
+      });
+      if(runCount) perLine.push(runCount);
+    }
+    /* rebuild the output as unbreakable lines carrying the same word
+       counts; if a line of longer decoys overflows the pane, step the
+       output type down a little until every forced line fits */
+    var htmlLines = [], cur = '', line = 0, inLine = 0;
+    words.forEach(function(w, idx){
+      var tk = tokens[idx];
+      if(w === null){
+        if(/^\s+$/.test(tk)){ if(cur !== '') cur += tk; }
+        else cur += escHtml(tk);
+        return;
+      }
+      if(w.dec !== null){
+        cur += w.lead+'<span class="swap">'+w.dec+'</span>'+w.trail;
+      } else {
+        cur += escHtml(w.tk);
+      }
+      inLine++;
+      if(perLine.length && line < perLine.length - 1 && inLine >= perLine[line]){
+        htmlLines.push(cur.replace(/\s+$/,''));
+        cur = ''; line++; inLine = 0;
+      }
+    });
+    if(cur.replace(/\s+$/,'')) htmlLines.push(cur.replace(/\s+$/,''));
+    output.style.fontSize = '';
+    output.innerHTML = htmlLines.map(function(l){
+      return '<span class="enc-line">'+l+'</span>';
+    }).join('<br>');
+    var fs = 24;
+    while(output.scrollWidth > output.clientWidth + 1 && fs > 18){
+      fs--; output.style.fontSize = fs+'px';
+    }
     count.textContent = swapCount+' / '+total+' TOKENS SWAPPED';
     meta.innerHTML = swaps.map(function(s){
       return '<span class="swap-pill"><span class="sp-from">'+s[0].toUpperCase()+'</span><span class="sp-arr">\u203a</span><span class="sp-to">'+s[1].toUpperCase()+'</span></span>';
@@ -359,10 +582,16 @@
   if(input){
     input.value = DEFAULT;
     input.addEventListener('input', encode);
+    if(marks) input.addEventListener('scroll', function(){ marks.scrollTop = input.scrollTop; });
     encode();
     /* Load the real alpha mapping, then re-encode with it. */
     fetch('/shieldfont-alpha-map.json').then(function(r){ return r.json(); })
       .then(function(m){ DICT = m; encode(); }).catch(function(){});
+    /* wrap depends on the face and the pane width: re-run when they settle */
+    if(document.fonts && document.fonts.ready && document.fonts.ready.then){
+      document.fonts.ready.then(function(){ encode(); });
+    }
+    window.addEventListener('resize', encode);
     var publishBtn = document.getElementById('enc-publish');
     if(publishBtn) publishBtn.addEventListener('click', function(){
       /* Carry the typed text into the full editor. WriterEncoder reads this
@@ -371,7 +600,7 @@
     });
   }
 
-  /* ---------- rotating use-case selector: arc on desktop, auto-cycle on mobile ---------- */
+  /* ---------- rotating use-case selector: arc on desktop, scroll-driven wheel on mobile ---------- */
   var clock = document.getElementById('clock');
   var clockList = document.getElementById('clockList');
   var selectorSec = document.getElementById('selector');
@@ -428,38 +657,90 @@
       if(window.scrollY !== lastY){ lastY = window.scrollY; layout(progress()*(N-1)); }
       requestAnimationFrame(tick);
     }
-    var cycleTimer = null, ci = 0, prevR = [];
-    function layoutMobile(){
-      var step = Math.max(46, clock.clientHeight*0.42);   // vertical spacing of the wheel
+    /* Mobile: a 3D momentum wheel driven by the same scroll progress as the
+       arc. The wheel chases progress()*(N-1) with light exponential smoothing,
+       so its speed tracks scroll velocity and fast flicks whip through items.
+       The list is pushed back by -R so the centre word renders at its exact
+       CSS size (no perspective magnification) and the lead:item ratio holds. */
+    var WHEEL = {
+      angle: 16,       // deg between adjacent words on the cylinder (tighter = denser)
+      radiusK: 0.6,    // cylinder radius = clock height × radiusK
+      minRadius: 110,  // px floor for the radius
+      visible: 2.7,    // items drawn either side of centre
+      smooth: 12.5,    // 1/s — how tightly the wheel chases scroll (lower = more inertia)
+      zoom: 0.10,      // extra centre scale-up on the active word (peaks at |d|=0)
+      zoomSpan: 0.6,   // |d| range over which the zoom bump fades out
+      snapVel: 0.5,    // items/s — scroll speed under which we count as "settling"
+      snapDelay: 200,  // ms of settling before the magnet engages
+      snapSmooth: 8    // 1/s — eased magnetise rate toward the nearest item
+    };
+    var wr = 0, wOn = false, wPrevTs = null, wPainted = null, wActive = -1, wReduceAi = -1;
+    var wPrevTarget = null, wStillMs = 0;
+    function layoutWheel(){
+      var H = clock.clientHeight || 1;
+      var R = Math.max(WHEEL.minRadius, H*WHEEL.radiusK);
+      clockList.style.transform = 'translateZ(' + (-R).toFixed(0) + 'px)';
       for(var i=0;i<N;i++){
-        var r = i - ci;
-        if(r >  N/2) r -= N;                               // shortest wrap
-        if(r < -N/2) r += N;
-        var it = items[i];
-        if(prevR[i] !== undefined && Math.abs(r - prevR[i]) > 1){
-          it.style.transition = 'none';                    // jumped across the wrap → reposition silently
-          void it.offsetHeight;                            // force reflow
-        } else {
-          it.style.transition = '';
-        }
-        it.style.transform = 'translate(-50%,-50%) translateY(' + (r*step).toFixed(1) + 'px)';
-        it.style.opacity = (r===0) ? '1' : (Math.abs(r)===1 ? '0.32' : (Math.abs(r)===2 ? '0.12' : '0'));
-        it.classList.toggle('active', r===0);
-        prevR[i] = r;
+        var d = i - wr, ad = Math.abs(d), it = items[i];
+        if(ad > WHEEL.visible){ it.style.opacity='0'; it.style.visibility='hidden'; continue; }
+        it.style.visibility='visible';
+        var sc = 0.64 + 0.36*Math.max(0, 1 - ad/1.9)      // active 1 → 0.64, like the arc…
+               + WHEEL.zoom*Math.max(0, 1 - ad/WHEEL.zoomSpan); // …plus a centre zoom pop
+        it.style.opacity = Math.max(0, 1 - 0.38*ad).toFixed(3);
+        it.style.transform = 'translate(-50%,-50%) rotateX(' + (-d*WHEEL.angle).toFixed(2) +
+          'deg) translateZ(' + R.toFixed(0) + 'px) scale(' + sc.toFixed(3) + ')';
       }
+      var ai = Math.max(0, Math.min(N-1, Math.round(wr)));
+      if(ai !== wActive){
+        if(wActive >= 0 && items[wActive]) items[wActive].classList.remove('active');
+        items[ai].classList.add('active');
+        wActive = ai;
+      }
+    }
+    function layoutReduceMobile(){
+      var ai = Math.max(0, Math.min(N-1, Math.round(progress()*(N-1))));
+      if(ai === wReduceAi) return;
+      wReduceAi = ai;
+      clockList.style.transform = '';
+      for(var i=0;i<N;i++){
+        var it = items[i];
+        it.style.visibility = 'visible';
+        it.style.transform = 'translate(-50%,-50%)';
+        it.style.opacity = (i===ai) ? '1' : '0';
+        it.classList.toggle('active', i===ai);
+      }
+    }
+    function wheelTick(ts){
+      if(!wOn) return;
+      if(reduce){ layoutReduceMobile(); requestAnimationFrame(wheelTick); return; }
+      var dt = (wPrevTs===null) ? 0.016 : Math.min(0.05, (ts-wPrevTs)/1000);
+      wPrevTs = ts;
+      var target = progress()*(N-1);
+      /* magnetic snap: while scrolling, chase the live target; once scroll
+         velocity stays under snapVel for snapDelay ms, ease toward the
+         nearest whole item so the wheel never rests between two words. */
+      var tv = (wPrevTarget===null) ? 0 : (target - wPrevTarget)/dt;
+      wPrevTarget = target;
+      if(Math.abs(tv) < WHEEL.snapVel){ wStillMs += dt*1000; } else { wStillMs = 0; }
+      var snapping = wStillMs >= WHEEL.snapDelay;
+      var desired = snapping ? Math.max(0, Math.min(N-1, Math.round(target))) : target;
+      var rate = snapping ? WHEEL.snapSmooth : WHEEL.smooth;
+      wr += (desired - wr)*Math.min(1, rate*dt);
+      if(Math.abs(desired - wr) < 0.0005) wr = desired;
+      if(wPainted === null || Math.abs(wr - wPainted) > 0.0004){ layoutWheel(); wPainted = wr; }
+      requestAnimationFrame(wheelTick);
     }
     function startMobile(){
       items.forEach(function(it){ it.style.cssText=''; it.classList.remove('active'); });
-      prevR = [];
-      ci = ci % N;
-      layoutMobile();
-      if(cycleTimer) return;
-      cycleTimer = setInterval(function(){ ci = (ci+1)%N; layoutMobile(); }, 1700);
+      wActive = -1; wReduceAi = -1; wPrevTs = null; wPainted = null;
+      wPrevTarget = null; wStillMs = 0;
+      wr = progress()*(N-1);
+      if(!wOn){ wOn = true; requestAnimationFrame(wheelTick); }
     }
     function stopMobile(){
-      if(cycleTimer){ clearInterval(cycleTimer); cycleTimer=null; }
-      items.forEach(function(it){ it.style.transition=''; });
-      prevR = [];
+      wOn = false; wActive = -1; wReduceAi = -1;
+      clockList.style.transform = '';
+      items.forEach(function(it){ it.style.cssText=''; it.classList.remove('active'); });
     }
     function init(){
       if(mqMobile.matches){
@@ -570,38 +851,110 @@
     window.addEventListener('resize', onScroll);
   })();
 
-  /* ---------- classic hero: You-read ⇄ AI-reads swap window ----------
-     Click handlers only — no auto-cycle. The toggle stays in whatever
-     state the user picks; nothing flips it on its own. */
+  /* ---------- classic hero: 3D doc stack (glass over matte) ----------
+     Scroll gate: while the page sits at the very top, wheel/touch input
+     drives the two sheets apart instead of scrolling the page; only once
+     they have fully separated does the page scroll. Arriving back at the
+     top and continuing upward runs it in reverse. The page itself never
+     moves during the gate, so the sections below keep their layout.
+     Leader lines ("You read" / "AI reads") fade in as the sheets part.
+     Desktop also gets a gentle lerped pointer parallax. */
   (function(){
-    var dw = document.getElementById('docwin');
-    var toggles = Array.prototype.slice.call(document.querySelectorAll('.audience-toggle'));
-    if(!dw || !toggles.length) return;
-    var targets = Array.prototype.slice.call(dw.querySelectorAll('.dw'));
+    var rig = document.getElementById('stackRig');
+    if(!rig) return;
+    var mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+    var reduced = mm ? mm('(prefers-reduced-motion: reduce)') : null;
+    var fine = mm ? mm('(hover: hover) and (pointer: fine)') : null;
+    if(reduced && reduced.matches) return;   /* CSS pins --sp:1 */
 
-    /* Plain text now: no per-word width reservation. The sentence just flows,
-       and the copy is chosen so the You and AI states wrap to the same number
-       of words per line. (Previously reserveWidths() locked each slot to its
-       wider state so the toggle never reflowed — removed by request.) */
+    /* Gesture gate: ONE continuous scroll motion — however strong — can
+       only complete the split; its momentum tail is swallowed. The page
+       scrolls only when a FRESH motion starts (after a short pause) with
+       the sheets already parted. Normalizes fast and gentle scrollers.
+       Reversing at the very top merges the sheets the same way. */
+    var RUN = 520;            /* px of wheel intent for a full split */
+    var TRUN = 210;           /* px of finger travel for a full split */
+    var GAP = 300;            /* ms of quiet that ends a wheel gesture */
+    var LOCK_MS = 650;        /* hard checkpoint once the split completes */
+    var P = 0;                /* split progress 0..1 */
+    var lastT = 0, lastAbs = 0, boundaryAt = 0, consuming = false;
+    function atTop(){ return window.scrollY <= 0; }
+    function clampP(){ if(P < 0) P = 0; if(P > 1) P = 1; }
+    window.addEventListener('wheel', function(e){
+      if(!atTop()){ consuming = false; lastAbs = 0; return; }
+      var now = performance.now();
+      var sameGesture = (now - lastT) < GAP;
+      var abs = Math.abs(e.deltaY);
+      /* a delta suddenly RISING against a decaying momentum tail is a new
+         deliberate motion, even with no quiet gap between them */
+      var fresh = !sameGesture || (abs > lastAbs * 2 + 8);
+      lastT = now; lastAbs = abs;
+      var down = e.deltaY > 0;
+      var active = down ? (P < 1) : (P > 0);
+      if(active){
+        consuming = true;
+        e.preventDefault();
+        P += e.deltaY / RUN; clampP();
+        if(down ? P >= 1 : P <= 0) boundaryAt = now;   /* checkpoint set */
+      } else if((now - boundaryAt) < LOCK_MS){
+        /* hard checkpoint: however violent the motion, nothing passes
+           until the lock expires — the sheets get their beat */
+        e.preventDefault();
+      } else if(consuming && !fresh){
+        e.preventDefault();      /* decaying momentum tail after the lock */
+      } else {
+        consuming = false;       /* genuine new motion: release the page */
+      }
+    }, {passive:false});
+    var lastY = null, touchConsuming = false;
+    window.addEventListener('touchstart', function(e){
+      if(e.touches.length === 1){ lastY = e.touches[0].clientY; touchConsuming = false; }
+    }, {passive:true});
+    window.addEventListener('touchmove', function(e){
+      if(lastY === null || !atTop()){ touchConsuming = false; return; }
+      var now = performance.now();
+      var y = e.touches[0].clientY;
+      var dy = lastY - y;          /* >0 = scrolling down */
+      lastY = y;
+      var down = dy > 0;
+      var active = down ? (P < 1) : (P > 0);
+      if(active){
+        touchConsuming = true;
+        e.preventDefault();
+        P += dy / TRUN; clampP();
+        if(down ? P >= 1 : P <= 0) boundaryAt = now;
+      } else if((now - boundaryAt) < LOCK_MS){
+        e.preventDefault();      /* checkpoint applies to fast swipes too */
+      } else if(touchConsuming){
+        e.preventDefault();      /* remainder of the drag that finished it */
+      }
+    }, {passive:false});
+    window.addEventListener('touchend', function(){ lastY = null; touchConsuming = false; });
 
-    function setState(state){
-      toggles.forEach(function(toggle){
-        toggle.setAttribute('data-state', state);
-        var opts = toggle.querySelectorAll('.audience-opt');
-        opts.forEach(function(o){ var on=o.getAttribute('data-aud')===state; o.classList.toggle('active',on); o.setAttribute('aria-checked',String(on)); });
-      });
-      var ai = state==='ai';
-      dw.classList.toggle('is-ai', ai);
-      targets.forEach(function(t){
-        t.textContent = ai ? t.getAttribute('data-dec') : t.getAttribute('data-real');
-        t.classList.toggle('dw-swap', ai);
-      });
+    var MAX = 2.5, cur = 0;
+    var tx = 0, ty = 0, cx = 0, cy = 0;
+    var hasPointer = !!(fine && fine.matches);
+    if(hasPointer){
+      window.addEventListener('pointermove', function(e){
+        var nx = (e.clientX / window.innerWidth) * 2 - 1;
+        var ny = (e.clientY / window.innerHeight) * 2 - 1;
+        tx = nx * MAX; ty = -ny * MAX;
+      }, {passive:true});
+      document.addEventListener('pointerleave', function(){ tx = 0; ty = 0; });
+      window.addEventListener('blur', function(){ tx = 0; ty = 0; });
     }
-    toggles.forEach(function(toggle){
-      toggle.querySelectorAll('.audience-opt').forEach(function(o){
-        o.addEventListener('click', function(){ setState(o.getAttribute('data-aud')); });
-      });
-    });
+    (function tick(){
+      cur += (P - cur) * 0.16;
+      if(Math.abs(P - cur) < 0.0005) cur = P;
+      rig.style.setProperty('--sp', cur.toFixed(4));
+      if(hasPointer){
+        cx += (tx - cx) * 0.055;
+        cy += (ty - cy) * 0.055;
+        rig.style.setProperty('--pry', cx.toFixed(3) + 'deg');
+        rig.style.setProperty('--prx', cy.toFixed(3) + 'deg');
+      }
+      window.requestAnimationFrame(tick);
+    })();
   })();
 })();
 

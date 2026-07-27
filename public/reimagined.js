@@ -638,10 +638,16 @@
         var op = Math.max(0.05, 1 - ad/1.05);
         var sc = 0.64 + 0.36*Math.max(0, 1 - ad/0.85);
         var it = items[i];
-        it.style.left = x.toFixed(1)+'px';
-        it.style.top = y.toFixed(1)+'px';
+        /* The arc used to be driven by writing left and top on every item on
+           every frame. Those are layout properties: each pair of writes dirtied
+           layout for the whole list, so a section that only ever moves type
+           around was costing a relayout per frame. The same placement now rides
+           the transform the item already had, which the compositor can handle
+           on its own. The CSS pins left/top at 0 so this is the only thing
+           positioning them. */
         it.style.opacity = op.toFixed(3);
-        it.style.transform = 'translate(0,-50%) rotate('+rot.toFixed(2)+'deg) scale('+sc.toFixed(3)+')'; // …extending outward
+        it.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) ' +
+          'translate(0,-50%) rotate('+rot.toFixed(2)+'deg) scale('+sc.toFixed(3)+')'; // …extending outward
         it.style.zIndex = String(Math.round(100 - ad*20));
         it.classList.toggle('active', (Math.round(sel)%N+N)%N === i);
       }
@@ -651,9 +657,17 @@
       var total = rect.height - window.innerHeight;
       return Math.min(1, Math.max(0, -rect.top/total));
     }
+    /* Both loops below used to run for the life of the page, reading the
+       section's rect and rewriting every item on every frame no matter where
+       the reader was. They now park whenever the section is nowhere near the
+       viewport, and the observer starts them again on the way back in.
+       Visibility comes from an observer rather than a rect read so the check
+       itself never forces a layout. */
+    var secVisible = true;
     var lastY = -1, rafOn = false;
     function tick(){
       if(!rafOn) return;
+      if(!secVisible){ rafOn = false; return; }
       if(window.scrollY !== lastY){ lastY = window.scrollY; layout(progress()*(N-1)); }
       requestAnimationFrame(tick);
     }
@@ -712,6 +726,7 @@
     }
     function wheelTick(ts){
       if(!wOn) return;
+      if(!secVisible){ wOn = false; return; }
       if(reduce){ layoutReduceMobile(); requestAnimationFrame(wheelTick); return; }
       var dt = (wPrevTs===null) ? 0.016 : Math.min(0.05, (ts-wPrevTs)/1000);
       wPrevTs = ts;
@@ -752,6 +767,14 @@
     }
     init();
     window.addEventListener('resize', function(){ init(); });
+    if(window.IntersectionObserver){
+      new IntersectionObserver(function(es){
+        secVisible = es[0].isIntersecting;
+        if(!secVisible) return;
+        if(mqMobile.matches){ if(!wOn) startMobile(); }
+        else if(!rafOn){ rafOn = true; lastY = -1; requestAnimationFrame(tick); }
+      }, {rootMargin:'200px'}).observe(selectorSec);
+    }
   }
 
   /* ---------- specimen size / spacing sliders ---------- */
@@ -827,11 +850,30 @@
     carousel.addEventListener('dragstart', function(e){ e.preventDefault(); });
   }
 
-  /* ---------- topbar shadow on scroll ---------- */
-  var topbar = document.querySelector('.topbar');
-  window.addEventListener('scroll', function(){
-    if(topbar) topbar.style.boxShadow = window.scrollY>10 ? '0 1px 20px rgba(13,13,13,.06)' : 'none';
-  }, {passive:true});
+  /* ---------- topbar shadow on scroll ----------
+     This used to write an inline box-shadow straight out of the scroll handler,
+     on every event, whether or not the value had changed. That is a style write
+     on the one element that is fixed and composited above everything else on the
+     page, repeated for the whole length of every scroll. It is now a class,
+     toggled inside a requestAnimationFrame batch and only when the state
+     actually flips, so scrolling past the threshold costs nothing after the
+     first frame. */
+  (function(){
+    var topbar = document.querySelector('.topbar');
+    if(!topbar) return;
+    var shadowed = null, queued = false;
+    function apply(){
+      queued = false;
+      var next = window.scrollY > 10;
+      if(next === shadowed) return;
+      shadowed = next;
+      topbar.classList.toggle('scrolled', next);
+    }
+    apply();
+    window.addEventListener('scroll', function(){
+      if(!queued){ queued = true; requestAnimationFrame(apply); }
+    }, {passive:true});
+  })();
 
   /* ---------- nav wordmark: eye-only at top, text reveals once the hero wordmark scrolls away ---------- */
   (function(){
@@ -852,10 +894,11 @@
   })();
 
   /* ---------- classic hero: 3D doc stack (glass over matte) ----------
-     Scroll gate: while the page sits at the very top, wheel/touch input
-     drives the two sheets apart instead of scrolling the page; only once
-     they have fully separated does the page scroll. Arriving back at the
-     top and continuing upward runs it in reverse. The page itself never
+     Scroll gate: while the page sits at the very top, the first scroll is
+     spent parting the two sheets instead of scrolling the page. It is one
+     milestone, taken whole — any amount of scroll triggers the full split
+     animation — and the page scrolls on the next motion. Arriving back at
+     the top and continuing upward runs it in reverse. The page itself never
      moves during the gate, so the sections below keep their layout.
      Leader lines ("You read" / "AI reads") fade in as the sheets part.
      Desktop also gets a gentle lerped pointer parallax. */
@@ -867,94 +910,191 @@
     var fine = mm ? mm('(hover: hover) and (pointer: fine)') : null;
     if(reduced && reduced.matches) return;   /* CSS pins --sp:1 */
 
-    /* Gesture gate: ONE continuous scroll motion — however strong — can
-       only complete the split; its momentum tail is swallowed. The page
-       scrolls only when a FRESH motion starts (after a short pause) with
-       the sheets already parted. Normalizes fast and gentle scrollers.
-       Reversing at the very top merges the sheets the same way. */
-    var RUN = 520;            /* px of wheel intent for a full split */
-    var TRUN = 210;           /* px of finger travel for a full split */
-    var GAP = 300;            /* ms of quiet that ends a wheel gesture */
-    var LOCK_MS = 650;        /* hard checkpoint once the split completes */
-    var P = 0;                /* split progress 0..1 */
-    var lastT = 0, lastAbs = 0, boundaryAt = 0, consuming = false;
+    /* Milestone gate: the split is a checkpoint, not a drag. The first scrap
+       of scroll intent at the top — a nudge or a slam, it makes no difference
+       — commits the WHOLE split and plays it as a fixed animation, so a weak
+       scroll can never strand the sheets half-open and leave you scrolling
+       again to finish the job. The rest of that gesture, momentum tail
+       included, is swallowed; the next fresh motion scrolls the page
+       straight away. Reversing at the very top merges the sheets the same
+       way. */
+    var SPLIT_MS = 560;       /* how long a committed split takes to play */
+    var GATE_MS = 360;        /* how long the milestone owns the input after */
+    var GAP = 260;            /* ms of quiet that ends a wheel gesture */
+    var MIN_TOUCH = 5;        /* px of finger travel that reads as intent */
+    var P = 0;                /* split target: 0 merged, 1 fully parted */
+    var from = 0, at = -1e9, animating = false;
     function atTop(){ return window.scrollY <= 0; }
-    function clampP(){ if(P < 0) P = 0; if(P > 1) P = 1; }
-    window.addEventListener('wheel', function(e){
-      if(!atTop()){ consuming = false; lastAbs = 0; return; }
-      var now = performance.now();
-      var sameGesture = (now - lastT) < GAP;
+
+    /* Take the whole milestone, whatever the input was, and animate to it
+       from wherever the sheets currently sit. */
+    function commit(to){
+      from = cur; P = to; at = performance.now(); animating = true;
+      kick();   /* the paint loop has work again */
+    }
+    /* The beat a fresh commit keeps for itself, so the split is unmistakably
+       under way before the page can move. Deliberately measured off the clock
+       rather than off `animating`: input decisions must not depend on whether
+       the paint loop got its frames — a backgrounded tab stops firing rAF
+       entirely, and a gate waiting on that would never reopen. It ends a
+       little before the animation does, so a quick second scroll gets the
+       page moving while the sheets finish parting. */
+    function held(now){ return (now - at) < GATE_MS; }
+
+    var lastT = 0, lastAbs = 0;
+    function onWheel(e){
+      if(!atTop()){ lastAbs = 0; return; }
       var abs = Math.abs(e.deltaY);
+      /* A sideways gesture is somebody else's; anything with vertical intent
+         is ours, down to the last pixel. There is deliberately no minimum:
+         a floor here would let the dying scraps of a flick — the 2px events
+         a momentum tail ends on — fall through and creep the page off zero,
+         which unbinds the gate and strands the hero unsplit. */
+      if(!e.deltaY || Math.abs(e.deltaX) > abs) return;
+      var now = performance.now();
       /* a delta suddenly RISING against a decaying momentum tail is a new
          deliberate motion, even with no quiet gap between them */
-      var fresh = !sameGesture || (abs > lastAbs * 2 + 8);
+      var fresh = (now - lastT) >= GAP || abs > lastAbs * 2 + 8;
       lastT = now; lastAbs = abs;
-      var down = e.deltaY > 0;
-      var active = down ? (P < 1) : (P > 0);
-      if(active){
-        consuming = true;
+      var to = e.deltaY > 0 ? 1 : 0;
+      if(P !== to){
         e.preventDefault();
-        P += e.deltaY / RUN; clampP();
-        if(down ? P >= 1 : P <= 0) boundaryAt = now;   /* checkpoint set */
-      } else if((now - boundaryAt) < LOCK_MS){
-        /* hard checkpoint: however violent the motion, nothing passes
-           until the lock expires — the sheets get their beat */
-        e.preventDefault();
-      } else if(consuming && !fresh){
-        e.preventDefault();      /* decaying momentum tail after the lock */
-      } else {
-        consuming = false;       /* genuine new motion: release the page */
+        commit(to);
+      } else if(held(now) || !fresh){
+        e.preventDefault();      /* the milestone's beat, then its momentum tail */
       }
-    }, {passive:false});
-    var lastY = null, touchConsuming = false;
+      /* else: milestone reached and this is a genuinely new motion — scroll */
+    }
+    var startY = null, tCommitted = false;
     window.addEventListener('touchstart', function(e){
-      if(e.touches.length === 1){ lastY = e.touches[0].clientY; touchConsuming = false; }
+      startY = e.touches.length === 1 ? e.touches[0].clientY : null;
+      tCommitted = false;
     }, {passive:true});
-    window.addEventListener('touchmove', function(e){
-      if(lastY === null || !atTop()){ touchConsuming = false; return; }
-      var now = performance.now();
-      var y = e.touches[0].clientY;
-      var dy = lastY - y;          /* >0 = scrolling down */
-      lastY = y;
-      var down = dy > 0;
-      var active = down ? (P < 1) : (P > 0);
-      if(active){
-        touchConsuming = true;
+    function onTouchMove(e){
+      if(startY === null || !atTop()) return;
+      /* Direction comes from the whole drag so far, not the last frame's
+         jitter. The threshold sits inside the browser's own touch slop, so
+         the commit lands before the page has begun to move and
+         preventDefault still counts. */
+      var travel = startY - e.touches[0].clientY;   /* >0 = finger up = scroll down */
+      if(Math.abs(travel) < MIN_TOUCH) return;
+      var to = travel > 0 ? 1 : 0;
+      if(!tCommitted && P !== to){
+        tCommitted = true;
         e.preventDefault();
-        P += dy / TRUN; clampP();
-        if(down ? P >= 1 : P <= 0) boundaryAt = now;
-      } else if((now - boundaryAt) < LOCK_MS){
-        e.preventDefault();      /* checkpoint applies to fast swipes too */
-      } else if(touchConsuming){
-        e.preventDefault();      /* remainder of the drag that finished it */
+        commit(to);
+      } else if(tCommitted || held(performance.now())){
+        e.preventDefault();      /* rest of the committing drag, or the beat */
       }
-    }, {passive:false});
-    window.addEventListener('touchend', function(){ lastY = null; touchConsuming = false; });
+    }
+    window.addEventListener('touchend', function(){ startY = null; tCommitted = false; });
+
+    /* The gate has to be able to call preventDefault, so its wheel and
+       touchmove listeners cannot be passive. A non-passive wheel listener on
+       window takes the whole page off the compositor's fast scrolling path:
+       every wheel event, anywhere on the page, has to wait for this handler
+       before the page is allowed to move. The gate only ever does anything
+       while the page sits at the very top, so it is now bound only there and
+       unbound the moment the page scrolls away. Everything below the hero gets
+       ordinary compositor-driven scrolling back. */
+    var gateBound = false;
+    function bindGate(){
+      if(gateBound) return;
+      gateBound = true;
+      window.addEventListener('wheel', onWheel, {passive:false});
+      window.addEventListener('touchmove', onTouchMove, {passive:false});
+    }
+    function unbindGate(){
+      if(!gateBound) return;
+      gateBound = false;
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchmove', onTouchMove);
+      lastAbs = 0; tCommitted = false;
+    }
+    if(atTop()) bindGate();
+    window.addEventListener('scroll', function(){
+      if(atTop()) bindGate(); else unbindGate();
+    }, {passive:true});
 
     var MAX = 2.5, cur = 0;
     var tx = 0, ty = 0, cx = 0, cy = 0;
     var hasPointer = !!(fine && fine.matches);
+
+    /* Whether the stack is anywhere near the viewport. An observer answers this
+       without any handler ever reading layout, so nothing here can force a
+       synchronous layout mid-scroll. */
+    var onScreen = true;
+    if(window.IntersectionObserver){
+      new IntersectionObserver(function(es){
+        onScreen = es[0].isIntersecting;
+        if(onScreen) kick();
+      }, {rootMargin:'160px'}).observe(rig);
+    }
+
     if(hasPointer){
       window.addEventListener('pointermove', function(e){
+        if(!onScreen) return;   /* no parallax to compute once it is scrolled past */
         var nx = (e.clientX / window.innerWidth) * 2 - 1;
         var ny = (e.clientY / window.innerHeight) * 2 - 1;
         tx = nx * MAX; ty = -ny * MAX;
+        kick();
       }, {passive:true});
-      document.addEventListener('pointerleave', function(){ tx = 0; ty = 0; });
-      window.addEventListener('blur', function(){ tx = 0; ty = 0; });
+      document.addEventListener('pointerleave', function(){ tx = 0; ty = 0; kick(); });
+      window.addEventListener('blur', function(){ tx = 0; ty = 0; kick(); });
     }
-    (function tick(){
-      cur += (P - cur) * 0.16;
-      if(Math.abs(P - cur) < 0.0005) cur = P;
-      rig.style.setProperty('--sp', cur.toFixed(4));
+
+    /* This loop used to run for the life of the page. Every frame, forever, it
+       rewrote --sp on the rig whether or not the value had changed, and a custom
+       property on the rig dirties the style of all 110 elements under it, one of
+       which is the frosted sheet carrying a 23px backdrop-filter. Measured in
+       Chrome that write plus its style recalculation costs 0.27ms per frame, or
+       about a sixth of a 60fps budget, spent at every scroll position on the
+       page including the one where the video sits. Safari pays more, because an
+       invalidated backdrop-filter is a backdrop-filter it has to sample again.
+
+       Now the loop runs only while something is actually moving, writes a
+       property only when the value it would write differs from the last one it
+       wrote, and parks itself when everything has settled. Any input that can
+       change the target calls kick() to start it again. */
+    var running = false, wSp = null, wRy = null, wRx = null;
+    function paint(){
+      var sp = cur.toFixed(4);
+      if(sp !== wSp){ rig.style.setProperty('--sp', sp); wSp = sp; }
       if(hasPointer){
-        cx += (tx - cx) * 0.055;
-        cy += (ty - cy) * 0.055;
-        rig.style.setProperty('--pry', cx.toFixed(3) + 'deg');
-        rig.style.setProperty('--prx', cy.toFixed(3) + 'deg');
+        var ry = cx.toFixed(3) + 'deg';
+        var rx = cy.toFixed(3) + 'deg';
+        if(ry !== wRy){ rig.style.setProperty('--pry', ry); wRy = ry; }
+        if(rx !== wRx){ rig.style.setProperty('--prx', rx); wRx = rx; }
       }
+    }
+    function tick(ts){
+      var moving = false;
+      /* The split is a committed animation on its own clock, not a lerp
+         chasing a dragged value: every split takes SPLIT_MS and lands the
+         same way whether the scroll that triggered it was a flick or a
+         nudge. rAF timestamps share performance.now()'s origin. */
+      if(animating){
+        var t = ((ts || performance.now()) - at) / SPLIT_MS;
+        if(t >= 1){ t = 1; animating = false; }
+        var k = 1 - Math.pow(1 - t, 3);   /* ease-out cubic: quick, then settles */
+        cur = from + (P - from) * k;
+        moving = true;
+      } else if(cur !== P){ cur = P; moving = true; }
+      if(hasPointer && onScreen){
+        if(Math.abs(tx - cx) >= 0.002 || Math.abs(ty - cy) >= 0.002){
+          cx += (tx - cx) * 0.055; cy += (ty - cy) * 0.055; moving = true;
+        } else if(cx !== tx || cy !== ty){ cx = tx; cy = ty; moving = true; }
+      }
+      paint();
+      if(moving) window.requestAnimationFrame(tick);
+      else running = false;
+    }
+    function kick(){
+      if(running) return;
+      running = true;
       window.requestAnimationFrame(tick);
-    })();
+    }
+    kick();
   })();
 })();
 
@@ -977,5 +1117,8 @@
     if(p && typeof p.catch === 'function') p.catch(function(){});
   }
   if(btn) btn.addEventListener('click', start);
+  /* The poster frame is clickable too. start() no-ops once playback has
+     begun, so this never fights the native controls' own click handling. */
+  video.addEventListener('click', start);
   video.addEventListener('play', function(){ card.classList.add('playing'); });
 })();

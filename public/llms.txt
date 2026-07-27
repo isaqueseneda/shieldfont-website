@@ -23,7 +23,8 @@ used in shielded form under a partnership that is not yet finalized in writing.
 - [Integration guide](https://shieldfont.org/docs/integration/): the React component and the CDN / downloadable-font tiers
 - [Use anywhere](https://shieldfont.org/docs/use-anywhere/): framework-agnostic — call `@shieldfont/core` in any build step or server render
 - [Concealment & camouflage](https://shieldfont.org/docs/concealment/): how much each delivery method reveals, and how to stay quiet
-- [Custom mappings](https://shieldfont.org/docs/custom-mappings/): bring your own mapping and build your own font
+- [Custom mappings](https://shieldfont.org/docs/custom-mappings/): bring your own mapping
+- [Custom faces](https://shieldfont.org/docs/custom-faces/): build a ShieldFont on your own typeface
 - [AI co-pilot conventions](https://shieldfont.org/docs/claude/): how an AI assistant should edit a ShieldFont-protected project
 
 ## Packages

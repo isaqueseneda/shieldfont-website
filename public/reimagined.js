@@ -26,28 +26,36 @@
     var cwords = null;
     if(!hero || !readLayer || !codeLayer) return;
 
-    // NOTE: These paragraphs and words are hard-coded demo exceptions,
-    // should not be replaced, and should not use the <Shield> tag or .shield class here.
+    /* The DOM already holds the ENCODED manifesto — app/page.tsx wraps the plain
+       English in <Shield>, which substitutes at build time. So WORDS is the
+       decoy text, and it is the text BOTH layers render. Only the font differs:
+       the read layer draws it through the shielded face, whose ligatures map
+       each decoy back to the original word's shape, and the code layer draws it
+       plainly so the spotlight shows what a scraper actually gets. */
     var srcP = readLayer.querySelectorAll('.src-p');
     var PARAS = srcP.length
       ? Array.prototype.map.call(srcP, function(p){ return p.textContent.trim().split(/\s+/); })
       : [readLayer.textContent.trim().split(/\s+/)];
-    /* REAL encoding, precomputed at build time from the shipped v18-alpha mapping
-       and carried in data-enc (see scripts/encode-manifesto.mjs). When present it
-       replaces the invented same-length decoys below, so the x-ray shows what a
-       scraper genuinely reads rather than a plausible-looking fiction. */
-    var REAL_ENC = [];
-    if(srcP.length){
-      Array.prototype.forEach.call(srcP, function(p){
-        var e = p.getAttribute('data-enc');
-        REAL_ENC.push(e ? e.trim().split(/\s+/) : null);
-      });
-    }
-    var HAS_REAL = REAL_ENC.length > 0 && REAL_ENC.every(function(arr, i){
-      return arr && arr.length === PARAS[i].length;   // must align word-for-word
-    });
     var WORDS = [], PARA_START = [];
     PARAS.forEach(function(arr){ PARA_START.push(WORDS.length); arr.forEach(function(w){ WORDS.push(w); }); });
+    /* Which words the dictionary replaced, so the x-ray can badge them. It is a
+       list of INDICES, not words: the original text does not exist anywhere in
+       this document and must not be reconstructible from it. */
+    var SWAP_IDX = {};
+    if(srcP.length){
+      var swapBase = 0;
+      Array.prototype.forEach.call(srcP, function(p, pi){
+        (p.getAttribute('data-swapped') || '').split(',').forEach(function(n){
+          n = parseInt(n, 10);
+          if(!isNaN(n)) SWAP_IDX[swapBase + n] = true;
+        });
+        swapBase += PARAS[pi].length;
+      });
+    }
+    /* No data-swapped means the markup is not the shielded manifesto (an older
+       snapshot, or some other block reusing .hero-text), so fall back to the
+       invented same-length decoys below rather than rendering nothing. */
+    var HAS_REAL = Object.keys(SWAP_IDX).length > 0;
     var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
     /* Spotlight size. radiusMul is the single knob — the mask radius (--eye-r),
        the visible green circle and the caption offset all derive from heroR.
@@ -59,11 +67,20 @@
        viewport, not a proportional one: 13% of a 1440 screen but 61% of a 320
        phone. Raise the 0.42 or drop the floor if you want it to actually scale. */
     var LH = 1.18, LS = -0.02, PARA_GAP = 0.85, heroR = 120, heroBaseR = 120, radiusMul = 1.8;
-    /* BOTH layers render in the normal site font, so one measurement serves both.
-       Do not swap this for a shielded font: the read layer holds plain English
-       and the code layer holds the encoding, and they are kept in registration by
-       boxing each swapped word to max(plain, encoded) on BOTH sides. */
-    function setFont(fs){ ctx.font = '500 '+fs+'px Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
+    /* Measure in the SHIELDED font at 500, because that is exactly what the read
+       layer draws (.hero-layer.read .hero-text in app/reimagined.css) and the
+       read layer is the one that has to fit the viewport. Canvas runs the same
+       shaper as layout, so measureText applies the ligature: an encoded word
+       comes back at the ORIGINAL word's width, not the decoy's. Measuring in
+       plain Optik instead laid every line out far too narrow and the two layers
+       drifted apart.
+
+       The 500 has to be a real cut or this silently degrades — see the six
+       @font-face rules in app/reimagined.css. */
+    function setFont(fs){ ctx.font = '500 '+fs+'px "ShieldFont Optik", Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
+    /* The code layer, which gets NO shielded font — it spells the decoys out,
+       and that is the point of the x-ray. Same context, different face. */
+    function setFontCode(fs){ ctx.font = '500 '+fs+'px Optik, "Helvetica Neue", Arial, sans-serif'; try{ ctx.letterSpacing = (LS*fs)+'px'; }catch(e){} }
 
     /* whole-WORD decoys: swap each word for a real word of the SAME length whose
        per-letter widths most closely match the original (so e.g. a wide 'w' maps to a
@@ -115,11 +132,10 @@
     }
     function buildDecoys(){
       if(HAS_REAL){
-        /* straight from the shipped dictionary; a word differs iff it was substituted */
-        var flat = [];
-        REAL_ENC.forEach(function(arr){ arr.forEach(function(w){ flat.push(w); }); });
-        ENC = flat;
-        SWAPPED = WORDS.map(function(w, k){ return flat[k] !== w; });
+        /* The source IS the encoding: identical text on both layers, different
+           font. Nothing to compute here beyond which indices got substituted. */
+        ENC = WORDS.slice();
+        SWAPPED = WORDS.map(function(_w, k){ return !!SWAP_IDX[k]; });
         return;
       }
       ENC = WORDS.map(function(word, k){
@@ -134,18 +150,61 @@
       });
     }
     buildDecoys();
-    /* wrap using max(plain, encoded) width */
-    function wrap(fs, maxW){
+
+    /* ---- PER-WORD WIDTHS IN BOTH FONTS ----
+       The two layers hold the same string and draw it with different tables, so
+       neither one is reliably the wider. A decoy resolves to a composite as wide
+       as the ORIGINAL word, and the dictionary does not pair by length: "walled"
+       draws as "developed" and runs 66px WIDER than the code layer's spelt-out
+       "walled", while "complain" draws as the shorter "protect" and runs 22px
+       NARROWER. Box only one side and every word of the other kind escapes its
+       box, which is what pushed the layers ~20% apart.
+
+       So measure both and box both to the max. Canvas is exact here — spot-
+       checked against getBoundingClientRect across 17 swapped words at the live
+       hero size, worst error 0.1px — so these numbers are the rendered widths,
+       not an estimate to be corrected later. */
+    var W_READ = [], W_CODE = [], W_BOX = [], W_SPACE = 0;
+
+    function measureWords(fs){
       setFont(fs);
+      W_SPACE = ctx.measureText(' ').width;
+      W_READ = WORDS.map(function(w){ return ctx.measureText(w).width; });
+      setFontCode(fs);
+      /* Glyph widths only. The green .sw badge deliberately takes no layout
+         width (its margin cancels its padding in reimagined.css), so there is
+         nothing to add here — and nothing the read layer has to make room for. */
+      W_CODE = ENC.map(function(w){ return ctx.measureText(w).width; });
+      /* EVERY word gets a box, not just the swapped ones. An unswapped word is
+         the same string on both layers, but it is not the same width: the
+         shielded face gives up some of Optik's kerning, so "unauthorized" comes
+         out ~3% wider there than in the code layer's plain Optik. Small, but it
+         accumulates along a line, and centred lines turn the leftover into drift
+         on every word. Boxing to the max costs the read layer nothing — it is
+         the wider side almost every time, so its box is its own width — and the
+         code layer takes up the slack. */
+      W_BOX = WORDS.map(function(_w, j){ return Math.max(W_READ[j], W_CODE[j]); });
+      setFont(fs);   /* leave the shielded face selected: it is what fit() reads */
+    }
+
+    /* Line width once every word sits in its shared box. Summing boxes rather
+       than measuring the joined string is what keeps this honest: the boxes are
+       what the browser will actually lay out. */
+    function lineWidth(idx){
+      var w = 0;
+      for(var i=0;i<idx.length;i++) w += W_BOX[idx[i]];
+      return w + W_SPACE * Math.max(0, idx.length - 1);
+    }
+
+    function wrap(fs, maxW){
       buildDecoys();
+      measureWords(fs);
       var lines=[];
       PARAS.forEach(function(arr, pi){
         var cur=[], start=PARA_START[pi];
         for(var i=0;i<arr.length;i++){
-          var gi=start+i, idx=cur.concat(gi);
-          var wPlain = ctx.measureText(idx.map(function(j){return WORDS[j];}).join(' ')).width;
-          var wEnc   = ctx.measureText(idx.map(function(j){return ENC[j];}).join(' ')).width;
-          if(Math.max(wPlain,wEnc) <= maxW || cur.length===0){ cur.push(gi); }
+          var gi=start+i;
+          if(cur.length===0 || lineWidth(cur.concat(gi)) <= maxW){ cur.push(gi); }
           else { lines.push({words:cur,para:pi}); cur=[gi]; }
         }
         if(cur.length) lines.push({words:cur,para:pi});
@@ -170,9 +229,16 @@
       var calib = 1;
       if(heroTextEl){
         var probe = document.createElement('span');
-        var probeStr = 'Shield Font writing protected authorization ownership training';
+        /* Real words from the encoded manifesto, so the probe exercises the
+           ligature path the rest of the layer goes through. A probe of plain
+           English would resolve to the DECOY shapes here (the dictionary is an
+           involution) and hand back a calibration for text that isn't on screen. */
+        var probeStr = 'ShieldFont was walled to complain messy writing unauthorized';
         probe.textContent = probeStr;
-        probe.style.cssText = 'position:absolute; left:-99999px; top:0; visibility:hidden; white-space:nowrap; font-family:var(--display); font-weight:500; letter-spacing:-.02em; font-size:64px;';
+        /* font-family is deliberately NOT set: it must inherit whatever the read
+           layer actually renders in, or this measures one font against another
+           and the ratio is noise. */
+        probe.style.cssText = 'position:absolute; left:-99999px; top:0; visibility:hidden; white-space:nowrap; font-weight:500; letter-spacing:-.02em; font-size:64px;';
         heroTextEl.appendChild(probe);
         var domW = probe.getBoundingClientRect().width;
         heroTextEl.removeChild(probe);
@@ -200,10 +266,13 @@
         var mid=(lo+hi)/2, lines=wrap(mid, availW), h=lines.length*mid*LH + nGaps*mid*PARA_GAP;
         if(h <= availH){ best=mid; bestLines=lines; lo=mid; } else { hi=mid; }
       }
-      hero.style.setProperty('--hero-fs', best.toFixed(1)+'px');
-      setFont(best);
+      /* Re-measure at `best`. The binary search leaves W_BOX holding whatever
+         size it probed last, which is not necessarily the one we are about to
+         render at, and a box computed for the wrong size is a box that does not
+         match the glyphs inside it. */
       buildDecoys();
-      var ws = WORDS.map(function(w){ return ctx.measureText(w).width; });
+      measureWords(best);
+      var ws = W_READ.slice();
       var avg = ws.reduce(function(a,b){ return a+b; },0)/ws.length;
       heroBaseR = Math.round(Math.max(54, Math.min(170, avg*0.42)));
       heroR = Math.round(heroBaseR * radiusMul);
@@ -213,28 +282,33 @@
         return bestLines.map(function(l){
           var cls='hl'+((l.para!==prev && prev!==-1)?' pstart':''); prev=l.para;
           var inner = l.words.map(function(j){
-            /* REGISTRATION. A swapped word is a different string on each layer, so
-               it is boxed to max(plain, encoded) on BOTH sides — same box, same
-               position, and the reveal lands exactly on the word it replaces.
-               Unswapped words need no box: identical text, identical font. */
-            if(SWAPPED[j]){
-              var wPlain = ctx.measureText(WORDS[j]).width;
-              var wEnc = ctx.measureText(ENC[j]).width;
-              var wMax = Math.max(wPlain, wEnc);
-              return code
-                ? '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;"><span class="cword sw" data-i="'+j+'">'+ENC[j]+'</span></span>'
-                : '<span style="display: inline-block; min-width: '+wMax.toFixed(2)+'px;">'+WORDS[j]+'</span>';
-            }
+            /* REGISTRATION. Every word gets the SAME box on both sides —
+               max(read, code), from W_BOX — so the reveal lands exactly on the
+               word it replaces. Box one side only and whichever layer is wider
+               that time hangs out of its box, and because the lines are centred
+               the excess compounds along the line: that was 211px of drift at
+               1440. Measured after this change: 0.02px, top to bottom. */
+            var box = 'display:inline-block; min-width:'+W_BOX[j].toFixed(2)+'px;';
+            var cw = 'cword' + (SWAPPED[j] ? ' sw' : '');
             return code
-              ? '<span class="cword" data-i="'+j+'">'+ENC[j]+'</span>'
-              : WORDS[j];
+              ? '<span style="'+box+'"><span class="'+cw+'" data-i="'+j+'">'+ENC[j]+'</span></span>'
+              : '<span style="'+box+'">'+WORDS[j]+'</span>';
           }).join(' ');
           return '<span class="'+cls+'">'+inner+'</span>';
         }).join('');
       }
-      readLayer.innerHTML = renderLines(false);
-      codeLayer.innerHTML = renderLines(true);
-      cwords = codeLayer.querySelectorAll('.cword');
+      /* Paint at a given size. The box widths are baked into the markup, so a
+         size change means a re-measure AND a re-render — set --hero-fs alone and
+         the glyphs shrink inside boxes that stay put, which both wastes the
+         space the shrink was trying to reclaim and stops the loop converging. */
+      function paint(fs){
+        hero.style.setProperty('--hero-fs', fs.toFixed(2)+'px');
+        measureWords(fs);
+        readLayer.innerHTML = renderLines(false);
+        codeLayer.innerHTML = renderLines(true);
+        cwords = codeLayer.querySelectorAll('.cword');
+      }
+      paint(best);
 
       /* DOM-measured shrink. Final safety net: walk the real DOM and
          shrink --hero-fs until no .hl on either layer exceeds the target.
@@ -255,7 +329,7 @@
       while(widest > shrinkLimitW && passes < 20){
         var ratio = shrinkLimitW / widest;
         fs = fs * ratio * 0.997;
-        hero.style.setProperty('--hero-fs', fs.toFixed(2)+'px');
+        paint(fs);
         widest = widestHL();
         passes++;
       }

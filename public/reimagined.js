@@ -869,6 +869,23 @@
     syncSpec();
   }
 
+  /* ---------- specimen roman/italic toggle ----------
+     One <button role="switch">, so click, Enter and Space all come through as a
+     plain click. The class goes on BOTH the switch (it slides the thumb) and
+     #specCards (it flips the Aa's), which is why this cannot just be :checked
+     on a hidden input styled by a sibling selector — the cards are not a
+     sibling. Optik has real italic faces for all six weights, so the flip is a
+     face swap, not a synthesised slant. */
+  var specStyle = document.getElementById('specStyle');
+  if(specCards && specStyle){
+    specStyle.addEventListener('click', function(){
+      var on = specStyle.getAttribute('aria-checked') !== 'true';
+      specStyle.setAttribute('aria-checked', String(on));
+      specStyle.classList.toggle('is-italic', on);
+      specCards.classList.toggle('is-italic', on);
+    });
+  }
+
   /* ---------- three ways: folder tabs ---------- */
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.wtab'));
   var panels = {};

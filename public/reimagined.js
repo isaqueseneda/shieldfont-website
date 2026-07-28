@@ -454,7 +454,12 @@
         try{ surface.setPointerCapture(e.pointerId); }catch(_){}
         var p = clampToHero(e.clientX + grabDX, e.clientY + grabDY);
         setHole(p[0], p[1]);
-        if(e.cancelable) e.preventDefault();   /* keeps text selection out of the drag */
+        /* Only the touch lens-handle drag suppresses the default action (it
+           would otherwise scroll the page). A press on the hero text itself
+           (keepOffset false, the desktop mouse path) must NOT preventDefault:
+           the manifesto is real text and stays selectable/copyable under the
+           spotlight, dragging the lens alongside it rather than instead of it. */
+        if(keepOffset && e.cancelable) e.preventDefault();
       }
       function moveDrag(e){
         if(!dragging) return;

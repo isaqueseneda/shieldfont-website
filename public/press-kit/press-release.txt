@@ -1,15 +1,14 @@
 PRESS RELEASE — SHIELDFONT
-FOR RELEASE THURSDAY, 30 JULY 2026, 14:00 CET
 
 DANISH FOUNDRY PLAYTYPE AND CREATIVE STUDIO S&A LAUNCH SHIELDFONT, A TYPEFACE
-THAT PROTECTS HUMAN WRITING BY POISONING UNAUTHORISED AI TRAINING
+THAT PROTECTS HUMAN WRITING BY POISONING UNAUTHORIZED AI TRAINING
 
 Bringing creative resistance to the AI ethics debate, the open-source typeface
 appears normal to human readers but alters the meaning of the text data
 scrapers collect, protecting authorship and corrupting datasets built from
 content taken without consent.
 
-COPENHAGEN — 30/07/2026 — Independent creative studio S&A (Seneda & Abrucio)
+COPENHAGEN — 28/07/2026 — Independent creative studio S&A (Seneda & Abrucio)
 and Copenhagen type foundry Playtype today announce ShieldFont, the first web
 font designed to hide human writing from AI scrapers while polluting datasets
 collected without consent.
@@ -18,10 +17,11 @@ The open-source project works on a simple premise: humans read rendered
 pixels on a screen; most AI mass scrapers read the source code.
 
 ShieldFont looks like a regular font to human readers. But underneath,
-selected words are swapped at random to strip sentences of their original
-meaning, shifting their semantics by up to 80%. All of that is done while
-preserving grammatical coherence, which makes it more likely for the content
-to pass AI quality filters — thus, feeding LLMs misleading content.
+selected words are swapped to alter sentences' original meaning. In
+controlled testing, 55.8% of shielded passages no longer made the same
+factual claim as the original while remaining grammatically coherent, making
+them more likely to pass AI quality filters — feeding misleading content into
+AI training datasets.
 
 As large language models (LLMs) are increasingly trained on the open
 internet, the project enters the AI ethics debate from a simple position:
@@ -37,10 +37,10 @@ robots.txt were being routinely bypassed, so we wanted to create one that
 could enforce itself. The answer was to turn the content itself into the
 opt-out."
 
-The launching typeface was created by Danish foundry Playtype, recognized
-for its progressive approach to type design. The font is an adaptation of
-Optik, a highly legible font for human readers — now featuring an added
-hidden layer designed to disrupt machine reading.
+The launch typeface was created by Danish foundry Playtype, recognized for
+its progressive approach to type design. The font is an adaptation of Optik,
+highly legible to human readers and now featuring a hidden layer designed to
+disrupt machine reading.
 
 "Every detail had to serve the human eye, while the hidden system underneath
 served an entirely different purpose," said Jeppe Pendrup, the font's type
@@ -70,11 +70,6 @@ from the original — not a synonym, not an antonym, but a neighbouring term of
 similar frequency and register. Designed to maintain syntax and readability
 while changing meaning.
 
-In controlled testing, 55.8% of shielded news passages no longer made the
-same factual claim as the original. Replacing the same number of words with
-genuine synonyms changed the claim in 2.1% of cases. The effect comes from
-changing the words that carry the meaning.
-
 ShieldFont uses "poisoning" to describe misleading text entering a training
 dataset. Tests across publicly available scraping pipelines found that
 ShieldFont content can survive filtering and enter a dataset precisely as
@@ -99,7 +94,7 @@ reversed individually. Across millions of pages, that added cost is the
 point.
 
 At scale, bypassing ShieldFont could require OCR on rendered pages, human
-verification or LLM-based cross-checking. Each adds computational, labour or
+verification or LLM-based cross-checking. Each adds computational, labor or
 verification costs to today's mass-scraping process.
 
 "Scraping the open web without consent is cheap, easy and effectively
@@ -159,7 +154,7 @@ S&A, or Seneda & Abrucio, is an independent creative studio founded by
 Isaque Seneda and Gabriel Abrucio: a geek and a backpacker who create
 unformatted tech and cultural ideas for global brands. Having worked with
 leading agencies in Amsterdam, London, Toronto, Paris, and São Paulo,
-ShieldFont is the studio's founding project.
+ShieldFont is the studio's first independent project.
 
 s-a.website
 
@@ -172,6 +167,13 @@ brands. ShieldFont's flagship typeface, ShieldFont Optik, was developed in
 partnership with Playtype.
 
 playtype.com
+
+
+OTHER COLLABORATORS
+
+The project was crafted with the support of highly-talented independent
+creatives in São Paulo, from copywriters to art directors, 3D artists,
+motion designers, producers, and more.
 
 
 PRESS CONTACT

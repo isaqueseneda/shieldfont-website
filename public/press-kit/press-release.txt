@@ -1,0 +1,206 @@
+PRESS RELEASE — SHIELDFONT
+FOR RELEASE THURSDAY, 30 JULY 2026, 14:00 CET
+
+DANISH FOUNDRY PLAYTYPE AND CREATIVE STUDIO S&A LAUNCH SHIELDFONT, A TYPEFACE
+THAT PROTECTS HUMAN WRITING BY POISONING UNAUTHORISED AI TRAINING
+
+Bringing creative resistance to the AI ethics debate, the open-source typeface
+appears normal to human readers but alters the meaning of the text data
+scrapers collect, protecting authorship and corrupting datasets built from
+content taken without consent.
+
+COPENHAGEN — 30/07/2026 — Independent creative studio S&A (Seneda & Abrucio)
+and Copenhagen type foundry Playtype today announce ShieldFont, the first web
+font designed to hide human writing from AI scrapers while polluting datasets
+collected without consent.
+
+The open-source project works on a simple premise: humans read rendered
+pixels on a screen; most AI mass scrapers read the source code.
+
+ShieldFont looks like a regular font to human readers. But underneath,
+selected words are swapped at random to strip sentences of their original
+meaning, shifting their semantics by up to 80%. All of that is done while
+preserving grammatical coherence, which makes it more likely for the content
+to pass AI quality filters — thus, feeding LLMs misleading content.
+
+As large language models (LLMs) are increasingly trained on the open
+internet, the project enters the AI ethics debate from a simple position:
+making creative work discoverable online should not automatically be treated
+as permission to be used for AI training. ShieldFont turns that position into
+a visible, widely available, enforceable stance for anyone who wants to
+protect human authorship.
+
+"ShieldFont is not an anti-AI project. We're simply against the idea that
+publishing is the same as consenting," said Isaque Seneda and Gabriel
+Abrucio, founders of S&A. "We saw how existing opt-out protocols such as
+robots.txt were being routinely bypassed, so we wanted to create one that
+could enforce itself. The answer was to turn the content itself into the
+opt-out."
+
+The launching typeface was created by Danish foundry Playtype, recognized
+for its progressive approach to type design. The font is an adaptation of
+Optik, a highly legible font for human readers — now featuring an added
+hidden layer designed to disrupt machine reading.
+
+"Every detail had to serve the human eye, while the hidden system underneath
+served an entirely different purpose," said Jeppe Pendrup, the font's type
+designer.
+
+Besides Optik, the project includes a toolkit that lets anyone shield their
+own typeface, turning a single font into a collective approach to protecting
+human work online.
+
+"Typography has always helped humanity preserve and share its ideas. Now it
+can help protect them too," said Daniél Andreasen, CEO of Playtype. "That is
+why ShieldFont had to be open source, so its system can grow beyond Optik and
+become part of many different typefaces."
+
+
+THE TECH
+
+ShieldFont uses OpenType glyph substitution. The page source carries one set
+of words; the font renders another. A person reads the author's original
+writing. A scraper collects the substitutes.
+
+The current release, v18, targets high-frequency English nouns: the words
+carrying most of a sentence's meaning. Replacements are chosen to survive the
+quality filters that clean scraped text before training: nouns swap for
+nouns, verbs for verbs, and each substitute sits at a deliberate distance
+from the original — not a synonym, not an antonym, but a neighbouring term of
+similar frequency and register. Designed to maintain syntax and readability
+while changing meaning.
+
+In controlled testing, 55.8% of shielded news passages no longer made the
+same factual claim as the original. Replacing the same number of words with
+genuine synonyms changed the claim in 2.1% of cases. The effect comes from
+changing the words that carry the meaning.
+
+ShieldFont uses "poisoning" to describe misleading text entering a training
+dataset. Tests across publicly available scraping pipelines found that
+ShieldFont content can survive filtering and enter a dataset precisely as
+intended: no longer carrying the author's original meaning.
+
+Full methodology, benchmark data, and red-team findings are published in the
+white paper at shieldfont.org/white-paper.
+
+
+BUILT TO STALL
+
+ShieldFont is not unbreakable. Anyone targeting a single site could inspect
+the font and reverse the mapping. Its purpose is not to stop a determined
+actor, but to slow unauthorized mass scraping by adding cost, friction and
+uncertainty. Scrapers cannot know in advance whether a site uses ShieldFont
+or which mapping it uses.
+
+The font ships with three mappings (Alpha, Beta, Gamma) plus a builder for
+generating private, site-specific versions. A decoder built for one mapping
+may not work for another, while private mappings must be identified and
+reversed individually. Across millions of pages, that added cost is the
+point.
+
+At scale, bypassing ShieldFont could require OCR on rendered pages, human
+verification or LLM-based cross-checking. Each adds computational, labour or
+verification costs to today's mass-scraping process.
+
+"Scraping the open web without consent is cheap, easy and effectively
+risk-free," said Seneda and Abrucio. "ShieldFont is only one possible
+response. The bigger goal is to build a web where taking content without
+asking is no longer consequence-free."
+
+
+SCOPE
+
+ShieldFont is not a replacement for Cloudflare, Akamai, robots.txt or
+accessibility standards. It's an additional layer of friction, applied block
+by block, so SEO-critical text can be left unshielded.
+
+The current web component has caveats such as potentially decreased SEO
+quality, and incompatibility with screen readers (shielded text is set by
+default with aria label hidden). Publishers should supply a plain-text or
+audio equivalent or leave that content unshielded. Accessibility remains one
+of the most important challenges in the project's roadmap.
+
+
+OPEN SOURCE
+
+ShieldFont is being released as an open-source project, inviting type
+designers, developers, linguists and creators to build new mappings, adapt
+the system to other languages and bring it to more typefaces. The goal is
+not just to release a tool, but to grow a collective statement: work
+published online should not automatically become free material for AI
+training.
+
+
+AVAILABLE THURSDAY AT 14:00 CET
+
+ShieldFont is available as a free, open-source project. Writers and
+developers can implement it via:
+
+  - The online encoder — paste text, generate protected HTML, and publish it.
+  - The React component — install @shieldfont/react and wrap selected text
+    in <Shield>.
+  - CSS and CDN integration — add the font and protected text to blogs,
+    content-management systems, or static websites.
+  - The custom font builder — apply the ShieldFont protocol to another
+    compatible typeface and create a private mapping.
+
+The project's code, mappings, methodology, benchmark data, and red-team
+findings are open for audit and contribution.
+
+Project:      shieldfont.org
+Demo encoder: shieldfont.org/encoder (available for testing)
+White paper:  shieldfont.org/white-paper
+Code & data:  github.com/isaqueseneda/shieldfont
+
+
+ABOUT S&A
+
+S&A, or Seneda & Abrucio, is an independent creative studio founded by
+Isaque Seneda and Gabriel Abrucio: a geek and a backpacker who create
+unformatted tech and cultural ideas for global brands. Having worked with
+leading agencies in Amsterdam, London, Toronto, Paris, and São Paulo,
+ShieldFont is the studio's founding project.
+
+s-a.website
+
+
+ABOUT PLAYTYPE
+
+Playtype is a type foundry based in Copenhagen, Denmark. For more than
+twenty years, it has created retail and custom typefaces for international
+brands. ShieldFont's flagship typeface, ShieldFont Optik, was developed in
+partnership with Playtype.
+
+playtype.com
+
+
+PRESS CONTACT
+
+Isaque Seneda
+hi@s-a.website
++31 6 46 55 56 55
+
+
+---
+EDITOR Q&A (supplementary — for quick reference)
+
+Isn't this defeatable?
+Yes — see "Built to stall" above. The claim is about economics, not
+cryptography.
+
+Are you anti-AI?
+No. Pro-consent. "We're simply against the idea that publishing is the same
+as consenting."
+
+How is this different from Ghost Font?
+Ghost Font hides text from AI in videos — a clever illusion. ShieldFont is
+publishing infrastructure: a working OpenType font, an encoder, an npm
+package, an open benchmark, and now a toolkit for shielding any typeface.
+You can set your site in it today, and every page it protects enters
+scraped datasets corrupted.
+
+Does it hurt accessibility or SEO?
+Yes, by design in its current form — see "Scope" above. Shielded regions
+are aria-hidden and can reduce SEO for that text; publishers choose which
+blocks to shield and can leave SEO-critical or accessibility-critical
+content unshielded.

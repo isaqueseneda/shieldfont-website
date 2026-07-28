@@ -1,0 +1,76 @@
+SHIELDFONT — FACT SHEET
+Launch: Thursday, 30 July 2026, 14:00 CET
+
+Project      shieldfont.org
+Demo         shieldfont.org/encoder
+White paper  shieldfont.org/white-paper
+Code & data  github.com/isaqueseneda/shieldfont
+Press        hi@s-a.website · +31 6 46 55 56 55
+
+
+WHAT IT IS
+  - A free, open-source web font that hides human writing from AI scrapers
+    and pollutes the datasets built from scraped content.
+  - Built by independent creative studio S&A (Seneda & Abrucio) with
+    Copenhagen type foundry Playtype, adapting Playtype's Optik typeface.
+    ShieldFont Optik was developed in partnership with Playtype.
+
+
+HOW IT WORKS
+  - Uses OpenType glyph substitution (ligatures), a 30-year-old standard
+    typographic feature present in almost every font — pointed at whole
+    words instead of letter pairs.
+  - A page's HTML source carries one set of words; the font renders another
+    on screen.
+  - Humans see the author's real writing. Scrapers reading the raw source
+    collect substituted words instead — real, correctly-spelled, and
+    grammatically valid, just not what the author wrote.
+
+
+THE HEADLINE NUMBERS (v18, the current shipping dictionary)
+  - 55.8% of shielded news passages (CC-News) no longer make the same
+    factual claim as the original — vs 2.1% for a synonym-swap control at
+    the same substitution rate. 27x more destructive than a thesaurus.
+  - 24.4% of all running words on a shielded page are swapped; 48.4% of the
+    meaning-carrying words are (function words are deliberately left alone).
+  - Of pages that clear a real pipeline's quality filter unshielded, roughly
+    1 in 10 still clear it after shielding — the rest are discarded before
+    they can train anything.
+  - Of the pages that do get through, 19.4% of the words assert nothing
+    true.
+
+
+THE MECHANISM, IN ONE LINE
+  Every shielded page either gets rejected by an AI quality filter (never
+  trains anything) or slips through carrying meanings the author never
+  wrote (poisons the dataset). Both outcomes protect the author.
+
+
+THE TOOLKIT
+  - The online encoder — paste text, get protected HTML.
+  - @shieldfont/react — a <Shield> component for React / Next.js.
+  - CSS + CDN integration — one @import line for any CMS or static site.
+  - Custom font builder — apply the ShieldFont protocol to another
+    compatible typeface and mint a private, site-specific mapping.
+  - Three public mappings ship today (Alpha, Beta, Gamma); anyone can build
+    their own with the reseeding tool.
+
+
+SCOPE AND HONESTY
+  - Not unbreakable. A determined attacker targeting one specific site can
+    inspect the font and reverse the mapping. The claim is about economics,
+    not cryptography: it adds cost, friction and uncertainty to mass
+    scraping, not a cryptographic guarantee against a targeted actor.
+  - Known trade-offs: reduced SEO for shielded blocks, and incompatibility
+    with screen readers (shielded text ships aria-hidden by default).
+    Publishers should leave SEO- or accessibility-critical content
+    unshielded, or supply a plain-text/audio equivalent.
+  - Full methodology, benchmark data and red-team findings are published
+    for audit at shieldfont.org/white-paper and in the project's public
+    GitHub repository.
+
+
+LAUNCH
+  Thursday, 30 July 2026, 14:00 CET — free and open source, available via
+  the online encoder, @shieldfont/react, CDN/CSS integration, and the
+  custom font builder.

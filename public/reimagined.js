@@ -901,20 +901,9 @@
   }
   tabs.forEach(function(t){ t.addEventListener('click', function(){ selectTab(t.dataset.tab); }); });
 
-  /* ---------- menu overlay ---------- */
-  var menuBtn = document.getElementById('menuBtn');
-  var menuOverlay = document.getElementById('menuOverlay');
-  if(menuBtn && menuOverlay){
-    function setMenu(open){
-      document.body.classList.toggle('menu-open', open);
-      menuBtn.setAttribute('aria-expanded', String(open));
-      menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-      menuOverlay.setAttribute('aria-hidden', String(!open));
-    }
-    menuBtn.addEventListener('click', function(){ setMenu(!document.body.classList.contains('menu-open')); });
-    menuOverlay.addEventListener('click', function(e){ if(e.target.closest('a')) setMenu(false); });
-    document.addEventListener('keydown', function(e){ if(e.key==='Escape') setMenu(false); });
-  }
+  /* The menu overlay used to be wired here. It is now part of <SiteNav/>
+     (components/SiteNav.tsx), which renders the bar on every route — this
+     script only ever saw the homepage's copy, which is how the two drifted. */
 
   /* ---------- specimen carousel: native scroll + click-drag + momentum ---------- */
   var carousel = document.getElementById('specCards');
@@ -946,48 +935,11 @@
     carousel.addEventListener('dragstart', function(e){ e.preventDefault(); });
   }
 
-  /* ---------- topbar shadow on scroll ----------
-     This used to write an inline box-shadow straight out of the scroll handler,
-     on every event, whether or not the value had changed. That is a style write
-     on the one element that is fixed and composited above everything else on the
-     page, repeated for the whole length of every scroll. It is now a class,
-     toggled inside a requestAnimationFrame batch and only when the state
-     actually flips, so scrolling past the threshold costs nothing after the
-     first frame. */
-  (function(){
-    var topbar = document.querySelector('.topbar');
-    if(!topbar) return;
-    var shadowed = null, queued = false;
-    function apply(){
-      queued = false;
-      var next = window.scrollY > 10;
-      if(next === shadowed) return;
-      shadowed = next;
-      topbar.classList.toggle('scrolled', next);
-    }
-    apply();
-    window.addEventListener('scroll', function(){
-      if(!queued){ queued = true; requestAnimationFrame(apply); }
-    }, {passive:true});
-  })();
-
-  /* ---------- nav wordmark: eye-only at top, text reveals once the hero wordmark scrolls away ---------- */
-  (function(){
-    var bar = document.querySelector('.topbar');
-    var heroMark = document.querySelector('.hwordmark');
-    if(!bar || !heroMark) return;
-    var ticking = false;
-    function update(){
-      ticking = false;
-      // text is collapsed by default (base CSS); reveal it once the hero wordmark scrolls past the nav
-      var revealed = heroMark.getBoundingClientRect().bottom <= 72;
-      bar.classList.toggle('wm-open', revealed);
-    }
-    function onScroll(){ if(!ticking){ ticking = true; requestAnimationFrame(update); } }
-    update();
-    window.addEventListener('scroll', onScroll, {passive:true});
-    window.addEventListener('resize', onScroll);
-  })();
+  /* The topbar scroll-shadow and the nav wordmark reveal also moved into
+     <SiteNav/>. They cannot live here any more: React owns that element's
+     className, so it would blow away a class this script had set on the very
+     next render. The behaviour is unchanged — same >10px shadow threshold,
+     same "reveal once .hwordmark's bottom passes 72px" rule. */
 
   /* ---------- classic hero: 3D doc stack (glass over matte) ----------
      Scroll gate: while the page sits at the very top, the first scroll is

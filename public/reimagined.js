@@ -577,6 +577,90 @@
   var meta = document.getElementById('enc-meta');
   var count = document.getElementById('enc-count');
   var DEFAULT = "Authors publish essays, poems, and ideas every morning.";
+
+  /* TOKENIZER — mirrors encodeSegments() in @shieldfont/core
+     (packages/core/src/encode.ts). This file is a classic script served from
+     /public with no bundler, so it cannot import the package; it must instead
+     agree with it character for character, because whatever this pane paints is
+     what the reader's font has to undo.
+
+     The old version here matched /[A-Za-z]+/ and treated everything else as
+     leading/trailing punctuation, so every digit in the input was copied to the
+     output pane as typed. The mapping permutes 0↔5, 3↔8, 4↔9 and 6↔7, so
+     "Take 3 tablets" was shown unencoded on the 3 while the real encoder — and
+     the font — read 8. Those two rules (Unicode letter runs, and the digit
+     context rule) are the whole reason to keep one tokenizer.
+
+     Running it per whitespace-delimited token is equivalent to running core
+     over the whole string: a digit's letter-neighbour is never across a space,
+     and no dictionary value contains one. */
+  var SF_WORD = /\p{L}+/gu, SF_DIGIT = /^[0-9]$/, SF_LETTER = /\p{L}/u;
+  function sfCase(src, target){
+    if(src.length>1 && src===src.toUpperCase()) return target.toUpperCase();
+    if(src.charAt(0)===src.charAt(0).toUpperCase()) return target.charAt(0).toUpperCase()+target.slice(1);
+    return target;
+  }
+  /* Edge codepoints, not code units: an astral letter next to a digit must not
+     read as half a surrogate (which would test as "not a letter"). */
+  function sfLastCp(s){
+    if(!s) return '';
+    var c = s.charCodeAt(s.length-1);
+    return (c>=0xDC00 && c<=0xDFFF && s.length>1) ? s.slice(-2) : s.slice(-1);
+  }
+  function sfFirstCp(s){
+    if(!s) return '';
+    var c = s.charCodeAt(0);
+    return (c>=0xD800 && c<=0xDBFF && s.length>1) ? s.slice(0,2) : s.charAt(0);
+  }
+  function sfIsLetter(ch){ return !!ch && SF_LETTER.test(ch); }
+  function sfPlain(s){ return {orig:s, enc:s, swapped:false, word:false}; }
+  /* -> [{orig, enc, swapped, word}], covering `tk` from end to end. */
+  function sfSegments(tk, dict){
+    var src = tk.normalize ? tk.normalize('NFC') : tk;
+    var coarse = [], last = 0, m, t, enc;
+    SF_WORD.lastIndex = 0;
+    while((m = SF_WORD.exec(src)) !== null){
+      if(m.index > last) coarse.push(sfPlain(src.slice(last, m.index)));
+      t = dict[m[0].toLowerCase()];
+      enc = t ? sfCase(m[0], t) : m[0];
+      coarse.push({orig:m[0], enc:enc, swapped:enc!==m[0], word:true});
+      last = m.index + m[0].length;
+    }
+    if(last < src.length) coarse.push(sfPlain(src.slice(last)));
+
+    /* The gaps between letter runs hold no letters, so a digit's neighbours are
+       either its own gap (never a letter) or the ENCODED edge of the adjoining
+       word — which is the context the font will see. */
+    var out = [];
+    for(var i=0;i<coarse.length;i++){
+      var seg = coarse[i];
+      if(seg.word){ out.push(seg); continue; }
+      var run = seg.orig;
+      var before = i>0 ? sfLastCp(coarse[i-1].enc) : '';
+      var after = i<coarse.length-1 ? sfFirstCp(coarse[i+1].enc) : '';
+      var buf = '';
+      for(var j=0;j<run.length;j++){
+        var c = run.charAt(j);
+        if(!SF_DIGIT.test(c)){ buf += c; continue; }
+        var sw = dict[c], e = c;
+        if(sw && SF_DIGIT.test(sw)){
+          var l = sfIsLetter(j>0 ? run.charAt(j-1) : before);
+          var r = sfIsLetter(j<run.length-1 ? run.charAt(j+1) : after);
+          /* 0 or 2 letter-neighbours -> pre-swap. Exactly 1 -> leave as written;
+             the font renders that case unchanged. */
+          if((l?1:0)+(r?1:0) !== 1) e = sw;
+        }
+        if(buf) out.push(sfPlain(buf));
+        buf = '';
+        out.push({orig:c, enc:e, swapped:e!==c, word:false});
+      }
+      if(buf) out.push(sfPlain(buf));
+    }
+    return out;
+  }
+  /* A token the dictionary gets a say over — the denominator for the readout. */
+  var SF_COUNTS = /[\p{L}0-9]/u;
+
   function encode(){
     var raw = input.value;
     if(!raw.trim()){
@@ -586,27 +670,48 @@
     }
     var tokens = raw.split(/(\s+)/);
     var swaps = [], swapCount = 0, total = 0, marksHtml = '';
-    var words = [];   /* [{dec:decoy-or-null, tk, lead, core, trail}] in order */
+    var words = [];   /* [{out:html} | null] — one entry per token, in order */
     tokens.forEach(function(tk){
       if(/^\s+$/.test(tk)){ marksHtml += tk; words.push(null); return; }
-      var lead = (tk.match(/^[^A-Za-z]*/)||[''])[0];
-      var trail = (tk.match(/[^A-Za-z]*$/)||[''])[0];
-      var core = tk.slice(lead.length, tk.length-trail.length);
-      if(!core){ marksHtml += escHtml(tk); words.push(null); return; }
+      if(!SF_COUNTS.test(tk)){ marksHtml += escHtml(tk); words.push(null); return; }
       total++;
-      var key = core.toLowerCase();
-      var dec = DICT[key];
-      if(dec){
-        if(core.length>1 && core===core.toUpperCase()) dec = dec.toUpperCase();
-        else if(core[0]===core[0].toUpperCase()) dec = dec[0].toUpperCase()+dec.slice(1);
-        swapCount++;
-        if(swaps.length<5) swaps.push([core,dec]);
-        marksHtml += escHtml(lead)+'<span class="enc-w enc-mark">'+escHtml(core)+'</span>'+escHtml(trail);
-        words.push({dec:dec, lead:lead, trail:trail});
-      } else {
-        marksHtml += escHtml(lead)+'<span class="enc-w">'+escHtml(core)+'</span>'+escHtml(trail);
-        words.push({dec:null, tk:tk});
-      }
+      /* Segments arrive one per digit. Fuse each run of them back into a single
+         unit — a number is one token the way a word is, so "2026" should ring
+         and pill once, reading "2026 > 2527", rather than putting a separate
+         mark on each digit that happened to move. Touching swapped pieces fuse
+         for the same reason. */
+      var segs = [];
+      sfSegments(tk, DICT).forEach(function(s){
+        var prev = segs[segs.length-1], digit = SF_DIGIT.test(s.orig);
+        if(prev && ((prev.digit && digit) || (prev.swapped && s.swapped))){
+          prev.orig += s.orig; prev.enc += s.enc;
+          prev.swapped = prev.swapped || s.swapped;
+          prev.digit = prev.digit && digit;
+          return;
+        }
+        segs.push({orig:s.orig, enc:s.enc, swapped:s.swapped, digit:digit});
+      });
+      /* The mirror carries the ORIGINAL characters (it sits under the textarea
+         and has to stay in caret registration with it); the output pane carries
+         the encoded ones. Only the pieces that actually change get marked, so a
+         swapped digit now rings and highlights like a swapped word. */
+      var marked = '', outHtml = '', changed = false;
+      segs.forEach(function(s){
+        if(s.swapped){
+          changed = true;
+          if(swaps.length<5) swaps.push([s.orig, s.enc]);
+          marked += '<span class="enc-mark">'+escHtml(s.orig)+'</span>';
+          outHtml += '<span class="swap">'+escHtml(s.enc)+'</span>';
+        } else {
+          marked += escHtml(s.orig);
+          outHtml += escHtml(s.enc);
+        }
+      });
+      if(changed) swapCount++;
+      /* .enc-w wraps the whole token: it is the unit the line-registration pass
+         below counts, and both panes emit exactly one per token. */
+      marksHtml += '<span class="enc-w">'+marked+'</span>';
+      words.push({out:outHtml});
     });
     if(marks) marks.innerHTML = marksHtml + '\n';
     /* measure the mirror's natural wrap: words per line */
@@ -633,11 +738,7 @@
         else cur += escHtml(tk);
         return;
       }
-      if(w.dec !== null){
-        cur += w.lead+'<span class="swap">'+w.dec+'</span>'+w.trail;
-      } else {
-        cur += escHtml(w.tk);
-      }
+      cur += w.out;
       inLine++;
       if(perLine.length && line < perLine.length - 1 && inLine >= perLine[line]){
         htmlLines.push(cur.replace(/\s+$/,''));

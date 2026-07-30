@@ -106,14 +106,18 @@ asking is no longer consequence-free."
 SCOPE
 
 ShieldFont is not a replacement for Cloudflare, Akamai, robots.txt or
-accessibility standards. It's an additional layer of friction, applied block
-by block, so SEO-critical text can be left unshielded.
+accessibility tools. It is an additional layer of friction, applied block by
+block, so SEO-critical text can be left unshielded.
 
-The current web component has caveats such as potentially decreased SEO
-quality, and incompatibility with screen readers (shielded text is set by
-default with aria label hidden). Publishers should supply a plain-text or
-audio equivalent or leave that content unshielded. Accessibility remains one
-of the most important challenges in the project's roadmap.
+The current version has caveats, including potentially decreased SEO quality
+and English-only support.
+
+Accessibility remains one of the project's core challenges, as screen
+readers rely on the same source code ShieldFont alters. By default, shielded
+text is hidden from screen readers (aria-hidden), so users are not exposed to
+misleading content. A beta option for dynamic websites lets screen readers
+reveal the original text by having the browser solve a compute-heavy puzzle,
+a more time-consuming request that deters most mass scrapers today.
 
 
 OPEN SOURCE

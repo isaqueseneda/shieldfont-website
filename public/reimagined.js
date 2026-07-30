@@ -1002,6 +1002,23 @@
   }
   tabs.forEach(function(t){ t.addEventListener('click', function(){ selectTab(t.dataset.tab); }); });
 
+  /* Deep links into a specific tab: #use-websites / #use-blogs /
+     #use-documents. None of these are real element ids (only #use is), so
+     the browser's native anchor scroll does nothing for them on its own —
+     select the tab and scroll by hand, on load and on hashchange (a
+     same-page click updates the hash without a reload, so load-time
+     handling alone would miss it). */
+  var USE_TAB_HASHES = { 'use-websites': 'websites', 'use-blogs': 'blogs', 'use-documents': 'documents' };
+  function applyUseHash(){
+    var name = USE_TAB_HASHES[location.hash.replace('#', '')];
+    if(!name) return;
+    selectTab(name);
+    var target = document.getElementById('use');
+    if(target) target.scrollIntoView({ block: 'start' });
+  }
+  applyUseHash();
+  window.addEventListener('hashchange', applyUseHash);
+
   /* The menu overlay used to be wired here. It is now part of <SiteNav/>
      (components/SiteNav.tsx), which renders the bar on every route — this
      script only ever saw the homepage's copy, which is how the two drifted. */

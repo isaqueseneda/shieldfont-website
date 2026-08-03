@@ -1288,3 +1288,65 @@
   video.addEventListener('click', start);
   video.addEventListener('play', function(){ card.classList.add('playing'); });
 })();
+
+/* ---------- HERO MANIFESTO: refuse the copy ----------
+   The manifesto is genuinely shielded, so what the DOM holds is the decoy.
+   Left alone, copying it succeeds silently and hands over fluent, wrong
+   English — the exact failure the package's copyPaste prop exists to prevent.
+   There is no Uncover control on this page, so the notice has to stand on its
+   own rather than point at a button.
+
+   CSS already sets user-select:none on #heroXray, which every current browser
+   honours, so this listener is the backstop for a select-all that slips
+   through. It is deliberately conservative: a selection wholly inside the hero
+   becomes the notice, and a selection that merely passes through it is only
+   rewritten when the decoy text is found verbatim. Anything else is left to
+   the browser, so selecting the whole page still copies the whole page. */
+(function(){
+  "use strict";
+  var xray = document.getElementById('heroXray');
+  if(!xray) return;
+
+  var NOTICE = '[This text is protected from AI bots and didn’t copy correctly. Read it on the page at shieldfont.org.]';
+
+  document.addEventListener('copy', function(ev){
+    /* Another handler already answered (the package's own copy guard binds the
+       same event on pages that mix tiers). First to act wins. */
+    if(ev.defaultPrevented || !ev.clipboardData) return;
+    var sel = window.getSelection();
+    if(!sel || sel.isCollapsed || !sel.rangeCount) return;
+
+    var touches = false, contained = true, i, rg;
+    for(i = 0; i < sel.rangeCount; i++){
+      rg = sel.getRangeAt(i);
+      if(rg.intersectsNode(xray)) touches = true;
+      var anc = rg.commonAncestorContainer;
+      if(!(anc === xray || xray.contains(anc))) contained = false;
+    }
+    if(!touches) return;
+
+    if(contained){
+      ev.clipboardData.setData('text/plain', NOTICE);
+      ev.preventDefault();
+      return;
+    }
+
+    /* Spans past the hero. Strip each layer's text if it came through intact —
+       both layers render the same string, so the second match is dropped
+       rather than turned into a second notice. */
+    var got = sel.toString(), put = got, hit = false;
+    ['readLayer','codeLayer'].forEach(function(id){
+      var el = document.getElementById(id);
+      var s = el && (el.innerText || el.textContent);
+      s = s && s.trim();
+      if(s && put.indexOf(s) !== -1){
+        put = put.split(s).join(hit ? '' : NOTICE);
+        hit = true;
+      }
+    });
+    if(hit){
+      ev.clipboardData.setData('text/plain', put);
+      ev.preventDefault();
+    }
+  });
+})();

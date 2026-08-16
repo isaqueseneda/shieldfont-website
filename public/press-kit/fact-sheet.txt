@@ -61,13 +61,16 @@ SCOPE AND HONESTY
     inspect the font and reverse the mapping. The claim is about economics,
     not cryptography: it adds cost, friction and uncertainty to mass
     scraping, not a cryptographic guarantee against a targeted actor.
-  - Known trade-offs: reduced SEO for shielded blocks, and incompatibility
-    with screen readers (shielded text ships aria-hidden by default).
-    Publishers should leave SEO- or accessibility-critical content
-    unshielded, or supply a plain-text/audio equivalent.
-  - Full methodology, benchmark data and red-team findings are published
-    for audit at shieldfont.org/white-paper and in the project's public
-    GitHub repository.
+  - Known trade-offs: reduced SEO for shielded blocks.
+  - Accessibility: in the React tier the real words ship in the page, behind
+    a visible notice with a button that opens them, on by default. Tested
+    with NVDA and VoiceOver. What ships aria-hidden is the scrambled
+    version. On the CDN tier there is no alternative and building one is the
+    publisher's job, never as a plain-text URL, which any scraper follows
+    for free.
+  - Full methodology and benchmark data are published for audit at
+    shieldfont.org/white-paper and in the project's public GitHub
+    repository.
 
 
 LAUNCH

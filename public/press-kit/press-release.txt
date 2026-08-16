@@ -75,8 +75,8 @@ dataset. Tests across publicly available scraping pipelines found that
 ShieldFont content can survive filtering and enter a dataset precisely as
 intended: no longer carrying the author's original meaning.
 
-Full methodology, benchmark data, and red-team findings are published in the
-white paper at shieldfont.org/white-paper.
+Full methodology and benchmark data are published in the white paper at
+shieldfont.org/white-paper.
 
 
 BUILT TO STALL
@@ -112,12 +112,12 @@ block, so SEO-critical text can be left unshielded.
 The current version has caveats, including potentially decreased SEO quality
 and English-only support.
 
-Accessibility remains one of the project's core challenges, as screen
-readers rely on the same source code ShieldFont alters. By default, shielded
-text is hidden from screen readers (aria-hidden), so users are not exposed to
-misleading content. A beta option for dynamic websites lets screen readers
-reveal the original text by having the browser solve a compute-heavy puzzle,
-a more time-consuming request that deters most mass scrapers today.
+Screen readers read the same source code ShieldFont alters, so the scrambled
+version of a shielded block ships aria-hidden and is never read aloud: a
+fluent, grammatical, wrong paragraph is worse than silence. In its place,
+and on by default, @shieldfont/react ships the original words sealed in the
+same page, with a visible notice carrying the control that recovers them
+(about 2.5 s on a current desktop).
 
 
 OPEN SOURCE
@@ -143,8 +143,8 @@ developers can implement it via:
   - The custom font builder — apply the ShieldFont protocol to another
     compatible typeface and create a private mapping.
 
-The project's code, mappings, methodology, benchmark data, and red-team
-findings are open for audit and contribution.
+The project's code, mappings, methodology and benchmark data are open for
+audit and contribution.
 
 Project:      shieldfont.org
 Demo encoder: shieldfont.org/encoder (available for testing)
@@ -206,7 +206,9 @@ You can set your site in it today, and every page it protects enters
 scraped datasets corrupted.
 
 Does it hurt accessibility or SEO?
-Yes, by design in its current form — see "Scope" above. Shielded regions
-are aria-hidden and can reduce SEO for that text; publishers choose which
-blocks to shield and can leave SEO-critical or accessibility-critical
-content unshielded.
+SEO: yes, deliberately. Accessibility: in the React tier the real words ship
+in the page, behind a visible notice with a button that opens them, on by
+default. What is hidden from assistive tech is the scrambled version,
+because a fluent wrong paragraph read aloud is worse than silence. Tested
+with NVDA and VoiceOver. ShieldFont is a v0 alpha, and publishers should
+check their own country's law first.

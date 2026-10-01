@@ -24,6 +24,15 @@ The horse/potato photographs illustrate a substitution between *words*. They do
 not claim that ShieldFont changes photographs. The printing animation beside the
 metal-type photograph is a separate schematic, not a historical record.
 
+## Typefaces
+
+- `../fonts/deck/cormorant-ligatures.woff` and the 3D ligature outlines:
+  **Cormorant Garamond**, Copyright 2015 The Cormorant Project Authors.
+  [SIL Open Font License 1.1](https://openfontlicense.org); the license accompanies
+  the subset as `../fonts/deck/Cormorant-OFL.txt`. It is used only as a familiar
+  example of a conventional fi ligature. Optik remains ShieldFont’s deck and
+  product face.
+
 ## Article screenshots
 
 The following locally cropped screenshots reproduce actual article headlines and

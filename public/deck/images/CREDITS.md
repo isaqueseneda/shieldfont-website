@@ -3,23 +3,6 @@
 These images support the presentation **How to poison unauthorized AI training
 with a typeface**, by S&A + Playtype.
 
-## Photographs
-
-- `horses.webp`: **Nokota Horses**, François Marchal.
-  [Source](https://commons.wikimedia.org/wiki/File:Nokota_Horses.jpg),
-  [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
-  This resized WebP derivative is distributed under the same CC BY-SA 3.0 license.
-- `potatoes.webp`: **Patates**, Scott Bauer, USDA Agricultural Research Service.
-  [Source](https://commons.wikimedia.org/wiki/File:Patates.jpg). Public domain.
-
-Photographs were resized to a maximum edge of 1,600 pixels and converted to WebP.
-CSS applies different display crops at different screen sizes. The subjects were
-not generated or composited. Attribution also appears on the relevant slides.
-Machine-readable source details are in `credits.json`.
-
-The horse and potato photographs illustrate a substitution between *words*. They do
-not claim that ShieldFont changes photographs.
-
 ## Made by S&A and Playtype
 
 - `title-card.webp`: the title card from the opening film
